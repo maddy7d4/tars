@@ -1,0 +1,19 @@
+{
+  // Solution file: it owns no sources of its own, it just names the projects so
+  // `tsc -b` at the root can build the whole graph in dependency order. It is also
+  // the default project typescript-eslint uses for loose build scripts.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/core" },
+    { "path": "./packages/host" },
+    { "path": "./packages/webview-ui" },
+    { "path": "./packages/extension" }
+  ]
+}

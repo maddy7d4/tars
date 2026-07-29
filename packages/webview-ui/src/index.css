@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+
+/*
+ * VS Code injects its active theme as CSS custom properties on the webview's root
+ * element. Mapping them onto Tailwind tokens means TARS inherits the user's theme
+ * — including Cursor and VSCodium themes — with no per-theme code and no theme
+ * detection (Docs/TARS_SPEC.md §5.3). The fallbacks only apply outside a webview,
+ * e.g. `vite dev`.
+ */
+@theme {
+  --color-editor-bg: var(--vscode-editor-background, #1e1e1e);
+  --color-editor-fg: var(--vscode-editor-foreground, #d4d4d4);
+  --color-button-bg: var(--vscode-button-background, #0e639c);
+  --color-button-fg: var(--vscode-button-foreground, #ffffff);
+  --color-focus-border: var(--vscode-focusBorder, #007fd4);
+  --color-panel-border: var(--vscode-panel-border, #2b2b2b);
+  --color-description-fg: var(--vscode-descriptionForeground, #9d9d9d);
+
+  --font-sans: var(--vscode-font-family, system-ui, sans-serif);
+  --font-mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+  --text-base: var(--vscode-font-size, 13px);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-editor-bg);
+  color: var(--color-editor-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+}

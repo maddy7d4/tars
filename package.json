@@ -1,0 +1,31 @@
+{
+  "name": "tars-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "commonjs",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r clean",
+    "package": "pnpm --filter ./packages/extension package",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@types/node": "^22",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.25",
+    "eslint": "^9",
+    "prettier": "^3",
+    "typescript": "^5.7",
+    "typescript-eslint": "^8",
+    "vitest": "^3"
+  }
+}

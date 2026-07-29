@@ -1,0 +1,31 @@
+export type {
+  ClockPort,
+  Diagnostic,
+  DiagnosticsPort,
+  DirectoryEntry,
+  EditorSelection,
+  FileStat,
+  FileSystemPort,
+  GitFileChange,
+  GitPort,
+  GitRepository,
+  HostPorts,
+  LoggerPort,
+  LogLevel,
+  ManagedTerminal,
+  OpenDocument,
+  SecretsPort,
+  StoragePort,
+  TerminalPort,
+  Unsubscribe,
+  WorkspaceFolder,
+  WorkspacePort,
+} from './ports/index.js';
+
+export type {
+  AgentProvider,
+  AgentSession,
+  PermissionDecision,
+  ProviderCapabilities,
+  SessionOptions,
+} from './provider/types.js';

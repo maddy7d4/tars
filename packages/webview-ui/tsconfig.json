@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    // Vite owns `dist/` — it is the artifact the extension copies into its bundle.
+    // tsc emits declarations into `out/` so the two never fight over a directory,
+    // and `out/` is already lint- and git-ignored.
+    "outDir": "out",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "references": [{ "path": "../shared" }]
+}

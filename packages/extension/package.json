@@ -1,0 +1,85 @@
+{
+  "name": "tars",
+  "displayName": "TARS",
+  "description": "AI engineering agent for VS Code, Cursor and VSCodium — powered by the Claude Agent SDK.",
+  "publisher": "tars",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onView:tars.chat"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tars",
+          "title": "TARS",
+          "icon": "dist/media/tars.svg"
+        }
+      ]
+    },
+    "views": {
+      "tars": [
+        {
+          "id": "tars.chat",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "tars.openChat",
+        "title": "TARS: Open Chat"
+      }
+    ],
+    "configuration": {
+      "title": "TARS",
+      "properties": {
+        "tars.permissionPolicy": {
+          "type": "string",
+          "enum": [
+            "always_allow",
+            "ask",
+            "deny"
+          ],
+          "enumDescriptions": [
+            "Run gated tools without asking. Only appropriate in a disposable workspace.",
+            "Ask before every gated tool invocation.",
+            "Deny every gated tool invocation and tell the model why."
+          ],
+          "default": "ask",
+          "markdownDescription": "Default decision for tool invocations that require approval. Credentials are never configured here — the Agent SDK resolves them from the environment or an existing `claude` login (see `Docs/TARS_SPEC.md` §1.3)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -b",
+    "clean": "rm -rf dist out *.tsbuildinfo *.vsix",
+    "test": "echo \"@tars/extension: activation is covered by @vscode/test-electron from phase 6\" && exit 0",
+    "package": "vsce package --no-dependencies --allow-missing-repository --out tars-0.0.0.vsix"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
+    "@tars/core": "workspace:*",
+    "@tars/host": "workspace:*",
+    "@tars/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@tars/webview-ui": "workspace:*",
+    "@types/vscode": "^1.90.0"
+  }
+}

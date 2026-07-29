@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  // Tests are inside the program on purpose: they are the compile-time proof that a
+  // fake port satisfies its interface (src/ports/ports.test.ts), so they must typecheck.
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../shared" }]
+}

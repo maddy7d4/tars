@@ -1,0 +1,12 @@
+# Everything is excluded, then the shipped artifacts are added back. The esbuild
+# bundle inlines every dependency, so no node_modules needs to ship — that is what
+# keeps the .vsix small and its contents auditable.
+**
+
+!dist/**
+!package.json
+!README.md
+!LICENSE
+
+# Source maps are inlined in development builds only and must never ship.
+dist/**/*.map

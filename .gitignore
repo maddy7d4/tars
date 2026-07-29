@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+*.vsix
+coverage/
+.turbo/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+.DS_Store
+.vscode-test/

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A queued run on the same ref is always less interesting than the newest one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (typecheck, lint, test, build, package)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable pnpm
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Each stage is its own step so a red build names the stage that failed
+      # rather than reporting a single opaque `verify` failure.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint (includes the core/shared boundary rule)
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package .vsix
+        run: pnpm package
+
+      - name: Upload .vsix
+        uses: actions/upload-artifact@v4
+        with:
+          name: tars-vsix
+          path: packages/extension/*.vsix
+          if-no-files-found: error

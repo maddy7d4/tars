@@ -1,0 +1,12 @@
+packages:
+  - 'packages/*'
+
+# Hoist nothing implicitly. Every package must declare what it imports, so the
+# CI-enforced dependency rule in Docs/TARS_SPEC.md §3.1 cannot be bypassed by a
+# transitively-hoisted module resolving at runtime.
+nodeLinker: isolated
+
+# Builds must be explicitly allowed. A dependency that runs arbitrary code at
+# install time is a supply-chain surface; this makes each one a reviewed decision.
+onlyBuiltDependencies:
+  - esbuild
