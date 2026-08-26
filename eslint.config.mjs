@@ -53,6 +53,9 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/*.d.ts',
       'Docs/**',
+      // Tooling scratch dirs: not project source, not covered by any tsconfig.
+      '.remember/**',
+      '.claude/**',
     ],
   },
 

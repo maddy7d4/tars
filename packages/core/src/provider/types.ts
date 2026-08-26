@@ -20,6 +20,13 @@ export interface SessionOptions {
   readonly cwd: string;
   /** Default decision for gated tools; per-tool overrides refine it (§4.2). */
   readonly permissionPolicy: PermissionPolicy;
+  /**
+   * Per-tool overrides keyed by tool name, e.g. `{ Bash: 'deny' }`. An entry is the
+   * user's direct instruction for that tool and wins over both `permissionPolicy`
+   * and the built-in defaults that gate destructive and outward-facing tools
+   * (§4.2). Absent means "no overrides".
+   */
+  readonly toolPolicies?: Readonly<Record<string, PermissionPolicy>>;
   /** Resume an existing conversation; requires `capabilities.sessionResume`. */
   readonly resumeSessionId?: SessionId;
   /** Model identifier, or absent to accept the provider's default. */
