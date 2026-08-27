@@ -16,7 +16,10 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onView:tars.chat"
+    "onView:tars.chat",
+    "onCommand:tars.openChat",
+    "onCommand:tars.newSession",
+    "onCommand:tars.interrupt"
   ],
   "contributes": {
     "viewsContainers": {
@@ -41,6 +44,21 @@
       {
         "command": "tars.openChat",
         "title": "TARS: Open Chat"
+      },
+      {
+        "command": "tars.newSession",
+        "title": "TARS: New Session"
+      },
+      {
+        "command": "tars.interrupt",
+        "title": "TARS: Stop"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "tars.openChat",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a"
       }
     ],
     "configuration": {
@@ -60,6 +78,19 @@
           ],
           "default": "ask",
           "markdownDescription": "Default decision for tool invocations that require approval. Credentials are never configured here — the Agent SDK resolves them from the environment or an existing `claude` login (see `Docs/TARS_SPEC.md` §1.3)."
+        },
+        "tars.toolPermissions": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "always_allow",
+              "ask",
+              "deny"
+            ]
+          },
+          "markdownDescription": "Per-tool overrides for `#tars.permissionPolicy#`, keyed by tool name — for example `{ \"Bash\": \"deny\" }`. An entry is a direct instruction and wins over both the default and the built-in gating of destructive and outward-facing tools (see `Docs/TARS_SPEC.md` §4.2)."
         }
       }
     }

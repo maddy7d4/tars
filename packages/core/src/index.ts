@@ -58,3 +58,24 @@ export type {
   SessionLogRecord,
   SessionManagerDeps,
 } from './session/index.js';
+
+export { EMPTY_CONTENT_HASH, hashContent, isContentHash } from './diff/index.js';
+
+export { ALWAYS_IGNORED, FileIndex, GitignoreFile, IgnoreStack } from './context/index.js';
+export { parseMentions, resolveMentions, stripMentions } from './context/index.js';
+export type {
+  FileIndexDeps,
+  IndexedFile,
+  Mention,
+  ResolutionSources,
+  ResolvedContext,
+} from './context/index.js';
+
+export { MEMORY_FILE_VERSION, MemoryStore, memoryPath } from './memory/index.js';
+export type {
+  MemoryDraft,
+  MemoryEntry,
+  MemoryKind,
+  MemoryQuery,
+  MemoryStoreDeps,
+} from './memory/index.js';

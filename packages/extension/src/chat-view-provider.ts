@@ -5,9 +5,10 @@ import {
   PROTOCOL_VERSION,
   assertNever,
   type HostToWebview,
-  type PermissionPolicy,
   type WebviewToHost,
 } from '@tars/shared';
+import { readPermissionPolicy } from './config.js';
+import { SessionController } from './session-controller.js';
 
 /** Must match the `views` contribution id in package.json. */
 export const CHAT_VIEW_ID = 'tars.chat';
@@ -24,18 +25,44 @@ function createNonce(): string {
   return randomBytes(16).toString('hex');
 }
 
-function readPermissionPolicy(ports: HostPorts): PermissionPolicy {
-  const value = ports.workspace.getConfiguration<string>('tars.permissionPolicy', 'ask');
-  return value === 'always_allow' || value === 'deny' ? value : 'ask';
-}
-
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | null = null;
+  private readonly controller: SessionController;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly ports: HostPorts,
-  ) {}
+    onBusyChanged: (busy: boolean) => void,
+  ) {
+    // The controller outlives every `WebviewView` this provider resolves, so it is
+    // built once here and torn down with the extension, not with the panel.
+    this.controller = new SessionController({
+      ports,
+      post: (message) => {
+        this.post(message);
+      },
+      onBusyChanged,
+    });
+  }
+
+  /** Starts a fresh conversation and brings the panel forward to show it. */
+  async newSession(): Promise<void> {
+    await this.controller.newSession();
+    await this.reveal();
+  }
+
+  /** Stops the in-flight turn. Reachable from the palette with the view closed. */
+  interrupt(): void {
+    this.controller.interrupt();
+  }
+
+  /**
+   * Releases the agent session. Idempotent, and awaited by `deactivate` — VS Code
+   * will not wait for a subprocess we only asked to stop.
+   */
+  dispose(): Promise<void> {
+    return this.controller.dispose();
+  }
 
   /** Reveals the view, activating the extension if the container was never opened. */
   async reveal(): Promise<void> {
@@ -85,7 +112,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleMessage(message: WebviewToHost): Promise<void> {
-    const log = this.ports.logger.child('chat');
     switch (message.type) {
       case 'webview_ready': {
         if (message.protocolVersion !== PROTOCOL_VERSION) {
@@ -98,6 +124,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
         this.post({ type: 'ready', protocolVersion: PROTOCOL_VERSION });
         this.post(this.configMessage());
+        // A remount is indistinguishable from a first mount on this side, so the
+        // transcript is always re-seeded from the log; `restore` no-ops when there
+        // is no session yet.
+        await this.controller.restore();
         return;
       }
       case 'open_file': {
@@ -110,19 +140,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
         return;
       }
-      case 'send_prompt':
-      case 'interrupt':
-      case 'permission_decision':
+      case 'send_prompt': {
+        await this.controller.sendPrompt(message.text, message.context);
+        return;
+      }
+      case 'interrupt': {
+        this.controller.interrupt();
+        return;
+      }
+      case 'permission_decision': {
+        this.controller.decide(message.requestId, message.decision);
+        return;
+      }
       case 'new_session': {
-        // The session lifecycle is phase 1. Until a provider is wired in, the host
-        // says so explicitly rather than dropping the intent on the floor.
-        log.log('info', 'intent received before the agent core exists', {
-          intent: message.type,
-        });
-        this.post({
-          type: 'host_error',
-          message: 'The TARS agent core is not wired up yet (phase 1).',
-        });
+        await this.controller.newSession();
         return;
       }
       default:

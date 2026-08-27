@@ -6,15 +6,42 @@
  * — including Cursor and VSCodium themes — with no per-theme code and no theme
  * detection (Docs/TARS_SPEC.md §5.3). The fallbacks only apply outside a webview,
  * e.g. `vite dev`.
+ *
+ * Every colour here is a `--vscode-*` reference. A literal hex anywhere but a
+ * fallback would be the one thing that breaks under a theme we have never seen,
+ * and there is no way to test against every theme a user might install.
  */
 @theme {
   --color-editor-bg: var(--vscode-editor-background, #1e1e1e);
   --color-editor-fg: var(--vscode-editor-foreground, #d4d4d4);
   --color-button-bg: var(--vscode-button-background, #0e639c);
   --color-button-fg: var(--vscode-button-foreground, #ffffff);
+  --color-button-hover-bg: var(--vscode-button-hoverBackground, #1177bb);
+  --color-secondary-bg: var(--vscode-button-secondaryBackground, #3a3d41);
+  --color-secondary-fg: var(--vscode-button-secondaryForeground, #ffffff);
+  --color-secondary-hover-bg: var(--vscode-button-secondaryHoverBackground, #45494e);
   --color-focus-border: var(--vscode-focusBorder, #007fd4);
   --color-panel-border: var(--vscode-panel-border, #2b2b2b);
   --color-description-fg: var(--vscode-descriptionForeground, #9d9d9d);
+
+  --color-input-bg: var(--vscode-input-background, #3c3c3c);
+  --color-input-fg: var(--vscode-input-foreground, #cccccc);
+  --color-input-border: var(--vscode-input-border, #3c3c3c);
+  --color-input-placeholder-fg: var(--vscode-input-placeholderForeground, #a6a6a6);
+
+  --color-widget-bg: var(--vscode-editorWidget-background, #252526);
+  --color-widget-border: var(--vscode-editorWidget-border, #454545);
+  --color-hover-bg: var(--vscode-list-hoverBackground, #2a2d2e);
+  --color-code-bg: var(--vscode-textCodeBlock-background, #0a0a0a);
+  --color-quote-bg: var(--vscode-textBlockQuote-background, #222222);
+
+  --color-link-fg: var(--vscode-textLink-foreground, #3794ff);
+  --color-link-active-fg: var(--vscode-textLink-activeForeground, #4daafc);
+  --color-error-fg: var(--vscode-errorForeground, #f48771);
+  --color-warning-fg: var(--vscode-editorWarning-foreground, #cca700);
+  --color-success-fg: var(--vscode-testing-iconPassed, #73c991);
+  --color-badge-bg: var(--vscode-badge-background, #4d4d4d);
+  --color-badge-fg: var(--vscode-badge-foreground, #ffffff);
 
   --font-sans: var(--vscode-font-family, system-ui, sans-serif);
   --font-mono: var(--vscode-editor-font-family, ui-monospace, monospace);
@@ -33,4 +60,18 @@ body {
   color: var(--color-editor-fg);
   font-family: var(--font-sans);
   font-size: var(--text-base);
+}
+
+/*
+ * `<details>` drives every collapsible in the transcript because it is keyboard-
+ * operable and screen-reader-correct for free. Only the default marker is replaced,
+ * so the semantics we rely on stay intact.
+ */
+summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
 }

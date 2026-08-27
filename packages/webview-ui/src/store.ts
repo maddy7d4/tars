@@ -1,17 +1,38 @@
 import { create } from 'zustand';
 import {
   assertNever,
-  type AgentEvent,
+  PROTOCOL_VERSION,
+  type ContextItem,
   type HostToWebview,
   type PermissionPolicy,
 } from '@tars/shared';
+import {
+  appendHostError,
+  appendUserPrompt,
+  applyAgentEvent,
+  createTranscript,
+  replayTranscript,
+  resolvePermission,
+  type PendingPermission,
+  type TranscriptBuffer,
+  type TranscriptItem,
+  type UsageTotals,
+} from './transcript.js';
+import { postToHost } from './vscode-api.js';
 
-/** A pending approval the user must resolve before the agent can continue (§4.2). */
-export interface PendingPermission {
-  readonly requestId: string;
-  readonly toolName: string;
-  readonly affectedPaths: readonly string[];
-}
+export type {
+  AssistantItem,
+  ErrorItem,
+  FileEditItem,
+  PendingPermission,
+  PlanItem,
+  ThinkingItem,
+  ToolCallItem,
+  ToolCallStatus,
+  TranscriptItem,
+  UsageTotals,
+  UserItem,
+} from './transcript.js';
 
 export interface TarsState {
   readonly connected: boolean;
@@ -19,100 +40,158 @@ export interface TarsState {
   readonly sessionId: string | null;
   readonly permissionPolicy: PermissionPolicy;
   readonly workspaceName: string | null;
-  /** Assistant prose for the current turn, accumulated from `text_delta`. */
-  readonly assistantText: string;
   readonly pendingPermissions: readonly PendingPermission[];
+  readonly usage: UsageTotals | null;
   readonly lastError: string | null;
+  /**
+   * True once the host announced a protocol version this bundle cannot read. Every
+   * later message is dropped: a stale webview that keeps parsing an incompatible
+   * union renders plausible nonsense, which is strictly worse than rendering nothing.
+   */
+  readonly protocolMismatch: boolean;
+
+  /**
+   * The live transcript array. Its identity is stable by design (see `TranscriptBuffer`),
+   * so components must subscribe through `useTranscript`, never to this field.
+   */
+  readonly transcript: readonly TranscriptItem[];
+  /** Bumped whenever `transcript` changes, since its identity cannot say so. */
+  readonly revision: number;
 
   /** Single entry point for host messages, so the reducer stays exhaustive. */
   readonly receive: (message: HostToWebview) => void;
+  /** Echoes the prompt locally and hands it to the host, which owns every privilege. */
+  readonly sendPrompt: (text: string, context?: readonly ContextItem[]) => void;
 }
 
-function applyEvent(state: TarsState, event: AgentEvent): Partial<TarsState> {
-  switch (event.type) {
-    case 'turn_start':
-      // Clearing here rather than on send means a resumed or replayed session
-      // starts each turn from a known state regardless of how it was entered.
-      return { assistantText: '', busy: true, lastError: null };
-    case 'text_delta':
-      // Appending a string rather than pushing a node keeps streaming O(1) per
-      // delta; virtualization of the full transcript arrives with phase 2.
-      return { assistantText: state.assistantText + event.text };
-    case 'permission_request':
-      return {
-        pendingPermissions: [
-          ...state.pendingPermissions,
-          {
-            requestId: event.requestId,
-            toolName: event.toolName,
-            affectedPaths: event.affectedPaths,
-          },
-        ],
-      };
-    case 'error':
-      return { lastError: event.message };
-    case 'turn_end':
-      return { busy: false };
-    case 'thinking_start':
-    case 'thinking_delta':
-    case 'thinking_end':
-    case 'tool_call_start':
-    case 'tool_call_delta':
-    case 'tool_call_result':
-    case 'plan_update':
-    case 'file_edit_proposed':
-    case 'usage':
-      // Rendered by the timeline and plan views introduced in phase 2; ignoring
-      // them here is a deliberate, exhaustively-checked choice, not an omission.
-      return {};
-    default:
-      return assertNever(event);
-  }
+/**
+ * The buffer lives outside the store because it is mutable by design and zustand's
+ * job here is publishing change notifications, not owning the data structure.
+ */
+let buffer: TranscriptBuffer = createTranscript();
+
+/** Fields the reducer derives; lifted out so live and replayed paths publish identically. */
+function published(current: TranscriptBuffer): Pick<
+  TarsState,
+  'transcript' | 'pendingPermissions' | 'busy' | 'lastError' | 'usage'
+> {
+  return {
+    transcript: current.items,
+    pendingPermissions: current.pendingPermissions,
+    busy: current.busy,
+    lastError: current.lastError,
+    usage: current.usage,
+  };
 }
 
-export const useTarsStore = create<TarsState>((set) => ({
+export const useTarsStore = create<TarsState>((set, get) => ({
   connected: false,
   busy: false,
   sessionId: null,
   permissionPolicy: 'ask',
   workspaceName: null,
-  assistantText: '',
   pendingPermissions: [],
+  usage: null,
   lastError: null,
+  protocolMismatch: false,
+  transcript: buffer.items,
+  revision: 0,
 
   receive: (message) => {
     set((state) => {
+      if (state.protocolMismatch) {
+        return {};
+      }
+
       switch (message.type) {
         case 'ready':
+          // Compared rather than trusted: the `.vsix` ships both halves together, but
+          // a live window can keep a stale webview across an extension update.
+          if (message.protocolVersion !== PROTOCOL_VERSION) {
+            return {
+              connected: false,
+              protocolMismatch: true,
+              lastError:
+                `TARS protocol mismatch: the extension speaks version ${String(message.protocolVersion)}, ` +
+                `this view speaks ${String(PROTOCOL_VERSION)}. Reload the window to update it.`,
+            };
+          }
           return { connected: true };
+
         case 'agent_event':
-          return applyEvent(state, message.event);
+          applyAgentEvent(buffer, message.event);
+          return { ...published(buffer), revision: state.revision + 1 };
+
         case 'session_state':
+          // Replay rebuilds through the same reducer, so a resumed session renders
+          // exactly as it did live. `busy` comes from the host, which alone knows
+          // whether a turn is still running behind the last persisted event.
+          buffer = replayTranscript(message.history);
+          buffer.busy = message.busy;
           return {
-            sessionId: message.sessionId,
+            ...published(buffer),
             busy: message.busy,
-            assistantText: message.history.reduce(
-              (text, event) => (event.type === 'text_delta' ? text + event.text : text),
-              '',
-            ),
-            pendingPermissions: [],
+            sessionId: message.sessionId,
+            revision: state.revision + 1,
           };
+
         case 'permission_resolved':
-          return {
-            pendingPermissions: state.pendingPermissions.filter(
-              (pending) => pending.requestId !== message.requestId,
-            ),
-          };
+          resolvePermission(buffer, message.requestId);
+          return { ...published(buffer), revision: state.revision + 1 };
+
         case 'config':
           return {
             permissionPolicy: message.permissionPolicy,
             workspaceName: message.workspaceName,
           };
+
         case 'host_error':
-          return { lastError: message.message };
+          appendHostError(buffer, message.message);
+          return { ...published(buffer), revision: state.revision + 1 };
+
         default:
           return assertNever(message);
       }
     });
   },
+
+  sendPrompt: (text, context = []) => {
+    const trimmed = text.trim();
+    if (trimmed === '' || get().busy) {
+      return;
+    }
+    appendUserPrompt(buffer, trimmed);
+    // Optimistic: the host will confirm with `turn_start`, but the input must lock
+    // immediately or a fast second Enter submits into a turn that already exists.
+    set((state) => ({ ...published(buffer), busy: true, revision: state.revision + 1 }));
+    postToHost({ type: 'send_prompt', text: trimmed, context });
+  },
 }));
+
+/**
+ * Subscribes to transcript changes. The array is mutated in place to keep token
+ * appends O(1), so `revision` — not the array's identity — is the signal React can act on.
+ */
+export function useTranscript(): readonly TranscriptItem[] {
+  const revision = useTarsStore((state) => state.revision);
+  void revision;
+  return useTarsStore.getState().transcript;
+}
+
+/** Test seam: drops the module-level buffer so cases start from an empty transcript. */
+export function resetTarsStore(): void {
+  buffer = createTranscript();
+  useTarsStore.setState({
+    connected: false,
+    busy: false,
+    sessionId: null,
+    permissionPolicy: 'ask',
+    workspaceName: null,
+    pendingPermissions: [],
+    usage: null,
+    lastError: null,
+    protocolMismatch: false,
+    transcript: buffer.items,
+    revision: 0,
+  });
+}

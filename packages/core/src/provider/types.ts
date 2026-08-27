@@ -41,6 +41,17 @@ export interface SessionOptions {
 export interface PermissionDecision {
   readonly allow: boolean;
   readonly reason?: string;
+  /**
+   * Promotes the tool to `always_allow` for the rest of this session, so later
+   * invocations of it stop prompting. Ignored unless `allow` is true: a refusal
+   * is never durable, because a user who declines once has said nothing about
+   * what they would decide next time.
+   *
+   * The grant dies with the session. Persisting it would let a single click
+   * silently widen what the agent may do in every future window, which is a
+   * decision that belongs in settings, where it is visible and revocable.
+   */
+  readonly remember?: boolean;
 }
 
 /**

@@ -2,12 +2,14 @@ import { useEffect, type JSX } from 'react';
 import { PROTOCOL_VERSION, type HostToWebview } from '@tars/shared';
 import { useTarsStore } from './store.js';
 import { postToHost } from './vscode-api.js';
+import { MessageList } from './components/MessageList.js';
+import { PermissionPrompt } from './components/PermissionPrompt.js';
+import { PromptInput } from './components/PromptInput.js';
+import { StatusHeader } from './components/StatusHeader.js';
 
 export function App(): JSX.Element {
-  const connected = useTarsStore((state) => state.connected);
-  const busy = useTarsStore((state) => state.busy);
-  const workspaceName = useTarsStore((state) => state.workspaceName);
-  const assistantText = useTarsStore((state) => state.assistantText);
+  const pendingPermissions = useTarsStore((state) => state.pendingPermissions);
+  const protocolMismatch = useTarsStore((state) => state.protocolMismatch);
   const lastError = useTarsStore((state) => state.lastError);
   const receive = useTarsStore((state) => state.receive);
 
@@ -26,40 +28,24 @@ export function App(): JSX.Element {
 
   return (
     <div className="flex h-full flex-col bg-editor-bg text-editor-fg">
-      <header className="flex items-center justify-between border-b border-panel-border px-3 py-2">
-        <span className="font-mono text-editor-fg">TARS</span>
-        <span className="text-description-fg">
-          {workspaceName ?? 'no workspace'} · {connected ? 'connected' : 'connecting'}
-          {busy ? ' · working' : ''}
-        </span>
-      </header>
+      <StatusHeader />
+      <MessageList />
 
-      <main className="flex-1 overflow-y-auto px-3 py-2">
-        {lastError !== null && (
-          <p role="alert" className="mb-2 font-mono text-editor-fg">
-            {lastError}
-          </p>
-        )}
-        {assistantText === '' ? (
-          <p className="text-description-fg">
-            Ask TARS about this workspace. The chat surface arrives in phase 2.
-          </p>
-        ) : (
-          <p className="whitespace-pre-wrap">{assistantText}</p>
-        )}
-      </main>
-
-      <footer className="border-t border-panel-border px-3 py-2">
-        <button
-          type="button"
-          onClick={() => {
-            postToHost({ type: 'new_session' });
-          }}
-          className="rounded bg-button-bg px-3 py-1 text-button-fg focus:outline-2 focus:outline-focus-border"
-        >
-          New session
-        </button>
-      </footer>
+      {protocolMismatch ? (
+        // Fatal and not recoverable from inside the webview, so it takes the input's
+        // place: offering a prompt box that can only produce mis-parsed traffic is worse
+        // than offering nothing.
+        <p role="alert" className="border-t border-panel-border px-3 py-2 text-error-fg">
+          {lastError}
+        </p>
+      ) : (
+        <>
+          {/* Pending approvals sit between the transcript and the input, where the
+              user's attention already is when a turn stalls waiting on them. */}
+          <PermissionPrompt requests={pendingPermissions} />
+          <PromptInput />
+        </>
+      )}
     </div>
   );
 }

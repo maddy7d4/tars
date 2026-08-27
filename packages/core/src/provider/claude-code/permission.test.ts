@@ -557,3 +557,102 @@ describe('PermissionBroker.canUseTool', () => {
     expect(decided(await pending).behavior).toBe('deny');
   });
 });
+
+/**
+ * Session-scoped promotion (`PermissionDecision.remember`).
+ *
+ * These assert the two directions that matter: a grant must actually stop the
+ * prompting it promised, and it must be incapable of widening anything the policy
+ * already closed. The second is the one worth writing down — the failure it guards
+ * against is silent, since a wrongly-granted tool simply stops asking.
+ */
+describe('PermissionBroker session grants', () => {
+  it('stops prompting for a tool the user promoted', async () => {
+    const { broker, emitted, channel } = harness();
+
+    const first = broker.canUseTool('Bash', { command: 'ls' }, options({ requestId: 'req_1' }));
+    await settleMicrotasks();
+    expect(channel.settle('req_1', { allow: true, remember: true })).toBe(true);
+    expect(decided(await first)).toEqual({ behavior: 'allow', toolUseID: 'toolu_1' });
+    expect(broker.isGrantedForSession('Bash')).toBe(true);
+
+    // The second invocation must resolve without any user involvement at all: no
+    // new prompt is emitted and nothing is waiting on the approval channel.
+    const second = decided(
+      await broker.canUseTool('Bash', { command: 'pwd' }, options({ requestId: 'req_2' })),
+    );
+    expect(second).toEqual({ behavior: 'allow', toolUseID: 'toolu_1' });
+    expect(emitted).toHaveLength(1);
+    expect(channel.pendingIds).toEqual([]);
+  });
+
+  it('promotes only the tool that was approved', async () => {
+    const { broker, channel } = harness();
+
+    const first = broker.canUseTool('Write', { file_path: '/a' }, options({ requestId: 'req_1' }));
+    await settleMicrotasks();
+    channel.settle('req_1', { allow: true, remember: true });
+    await first;
+
+    void broker.canUseTool('Bash', { command: 'ls' }, options({ requestId: 'req_2' }));
+    await settleMicrotasks();
+    expect(broker.isGrantedForSession('Bash')).toBe(false);
+    expect(channel.pendingIds).toEqual(['req_2']);
+  });
+
+  it('does not promote a plain one-shot allow', async () => {
+    const { broker, emitted, channel } = harness();
+
+    const first = broker.canUseTool('Bash', { command: 'ls' }, options({ requestId: 'req_1' }));
+    await settleMicrotasks();
+    channel.settle('req_1', { allow: true });
+    await first;
+    expect(broker.isGrantedForSession('Bash')).toBe(false);
+
+    void broker.canUseTool('Bash', { command: 'pwd' }, options({ requestId: 'req_2' }));
+    await settleMicrotasks();
+    expect(emitted).toHaveLength(2);
+    expect(channel.pendingIds).toEqual(['req_2']);
+  });
+
+  it('never records a grant from a refusal, however it is phrased', async () => {
+    const { broker, channel } = harness();
+
+    const first = broker.canUseTool('Bash', { command: 'rm -rf /' }, options({ requestId: 'req_1' }));
+    await settleMicrotasks();
+    // `remember` alongside `allow: false` is contradictory input; the refusal wins.
+    channel.settle('req_1', { allow: false, remember: true });
+    expect(decided(await first).behavior).toBe('deny');
+    expect(broker.isGrantedForSession('Bash')).toBe(false);
+  });
+
+  it('cannot loosen a tool the policy denies, because denial never reaches a prompt', async () => {
+    const { broker, emitted, channel } = harness({ toolPolicies: { Bash: 'deny' } });
+
+    const result = decided(
+      await broker.canUseTool('Bash', { command: 'ls' }, options({ requestId: 'req_1' })),
+    );
+
+    expect(result.behavior).toBe('deny');
+    // No prompt was emitted, so there was no decision that could have carried
+    // `remember` — the grant path is unreachable for a denied tool by construction.
+    expect(emitted).toEqual([]);
+    expect(channel.pendingIds).toEqual([]);
+    expect(broker.isGrantedForSession('Bash')).toBe(false);
+  });
+
+  it('keeps grants inside their own broker, since a broker is one session', async () => {
+    const granted = harness();
+    const fresh = harness();
+
+    const first = granted.broker.canUseTool('Bash', { command: 'ls' }, options({ requestId: 'req_1' }));
+    await settleMicrotasks();
+    granted.channel.settle('req_1', { allow: true, remember: true });
+    await first;
+
+    void fresh.broker.canUseTool('Bash', { command: 'ls' }, options({ requestId: 'req_2' }));
+    await settleMicrotasks();
+    expect(fresh.broker.isGrantedForSession('Bash')).toBe(false);
+    expect(fresh.channel.pendingIds).toEqual(['req_2']);
+  });
+});

@@ -97,10 +97,36 @@ export class MemoryFileSystem implements FileSystemPort {
   readDirectory(path: string): Promise<readonly DirectoryEntry[]> {
     const prefix = path.endsWith('/') ? path : `${path}/`;
     const entries: DirectoryEntry[] = [];
+    // Directories are synthesised from the paths of the files beneath them, the
+    // same way a real filesystem reports them. Without this a recursive walk sees
+    // only the top level and silently indexes nothing — the fake has to model
+    // directory structure or it cannot stand in for the real port.
+    const directories = new Set<string>();
+
     for (const key of this.files.keys()) {
-      if (key.startsWith(prefix) && !key.slice(prefix.length).includes('/')) {
-        entries.push({ name: key.slice(prefix.length), type: 'file' });
+      if (!key.startsWith(prefix)) {
+        continue;
       }
+      const rest = key.slice(prefix.length);
+      const separator = rest.indexOf('/');
+      if (separator === -1) {
+        entries.push({ name: rest, type: 'file' });
+      } else {
+        directories.add(rest.slice(0, separator));
+      }
+    }
+
+    for (const directory of this.directories) {
+      if (directory.startsWith(prefix)) {
+        const rest = directory.slice(prefix.length);
+        if (!rest.includes('/')) {
+          directories.add(rest);
+        }
+      }
+    }
+
+    for (const name of directories) {
+      entries.push({ name, type: 'directory' });
     }
     return Promise.resolve(entries);
   }

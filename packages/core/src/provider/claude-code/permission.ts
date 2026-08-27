@@ -114,10 +114,29 @@ const INTERRUPTED_BEFORE_DECISION = 'The turn was interrupted before the user de
  *   deadline of their own.
  */
 export class PermissionBroker {
+  /**
+   * Tools the user promoted mid-session by answering a prompt with `remember`.
+   *
+   * Consulted only on the `ask` path, which is what keeps promotion incapable of
+   * loosening anything: `deny` — whether from an explicit override or the session
+   * default — short-circuits before a prompt is ever emitted, so a denied tool can
+   * never reach the point where a grant would be recorded for it.
+   *
+   * Held on the broker rather than in `deps.toolPolicies` because the broker's
+   * lifetime *is* the session's: closing the session drops the grants with it,
+   * which is the boundary `PermissionDecision.remember` documents.
+   */
+  private readonly sessionGrants = new Set<string>();
+
   constructor(private readonly deps: PermissionBrokerDeps) {}
 
   policyFor(toolName: string): PermissionPolicy {
     return resolveToolPolicy(toolName, this.deps.defaultPolicy, this.deps.toolPolicies);
+  }
+
+  /** True once the user promoted this tool for the session. Exposed for tests and UI. */
+  isGrantedForSession(toolName: string): boolean {
+    return this.sessionGrants.has(toolName);
   }
 
   /** Bound so it can be handed to the SDK's `Options.canUseTool` directly. */
@@ -129,6 +148,9 @@ export class PermissionBroker {
     }
     if (policy === 'deny') {
       return { behavior: 'deny', message: DENIED_BY_POLICY, toolUseID: options.toolUseID };
+    }
+    if (this.sessionGrants.has(toolName)) {
+      return { behavior: 'allow', toolUseID: options.toolUseID };
     }
 
     const requestId = options.requestId;
@@ -152,6 +174,9 @@ export class PermissionBroker {
         message: INTERRUPTED_BEFORE_DECISION,
         toolUseID: options.toolUseID,
       };
+    }
+    if (decision.allow && decision.remember === true) {
+      this.sessionGrants.add(toolName);
     }
     return toPermissionResult(decision, options.toolUseID);
   };

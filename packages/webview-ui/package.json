@@ -7,7 +7,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "clean": "rm -rf dist out *.tsbuildinfo",
-    "test": "echo \"@tars/webview-ui: component tests land with the chat shell in phase 2\" && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@tars/shared": "workspace:*",
@@ -17,10 +17,15 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4",
+    "happy-dom": "^20.11.6",
     "tailwindcss": "^4",
-    "vite": "^6"
+    "vite": "^6",
+    "vitest": "^3.2.7"
   }
 }
