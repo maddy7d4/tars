@@ -26,6 +26,11 @@ const KIND_LABEL: Record<PendingChangeSummary['kind'], string> = {
  *
  * Revert restores the checkpoint taken before the turn's first write, and lands
  * as a `WorkspaceEdit`, so reverting by mistake is itself undoable with Ctrl+Z.
+ *
+ * The file list is a way *into* the editor, not a review surface of its own: the
+ * per-hunk Accept and Reject controls live on the code itself (§6.5), so clicking
+ * a path opens the file rather than a diff tab. The diff tab stays available for
+ * anyone who wants the side-by-side view, on its own control.
  */
 export function ReviewBar(): JSX.Element | null {
   const changes = useTarsStore((state) => state.pendingChanges);
@@ -59,9 +64,9 @@ export function ReviewBar(): JSX.Element | null {
             </span>
             <button
               type="button"
-              title={`Open a diff of ${change.path}`}
+              title={`Open ${change.path} and review its changes inline`}
               onClick={() => {
-                postToHost({ type: 'review_action', action: 'review', path: change.path });
+                postToHost({ type: 'open_file', path: change.path });
               }}
               className="min-w-0 flex-1 truncate rounded px-1 text-left font-mono text-link-fg underline decoration-dotted underline-offset-2 hover:bg-hover-bg hover:text-link-active-fg focus-visible:outline-2 focus-visible:outline-focus-border"
             >
@@ -71,6 +76,17 @@ export function ReviewBar(): JSX.Element | null {
             <span className="text-description-fg">
               +{change.added} −{change.removed}
             </span>
+            <button
+              type="button"
+              aria-label={`Open a side-by-side diff of ${change.path}`}
+              title="Side-by-side diff"
+              onClick={() => {
+                postToHost({ type: 'review_action', action: 'review', path: change.path });
+              }}
+              className="rounded px-1 text-description-fg hover:bg-hover-bg focus-visible:outline-2 focus-visible:outline-focus-border"
+            >
+              ⇄
+            </button>
           </li>
         ))}
       </ul>
@@ -105,7 +121,9 @@ export function ReviewBar(): JSX.Element | null {
         >
           Keep
         </button>
-        <span className="text-description-fg">already written to disk</span>
+        <span className="text-description-fg">
+          or accept and reject each change in the editor
+        </span>
       </div>
     </section>
   );

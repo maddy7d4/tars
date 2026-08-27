@@ -1,5 +1,12 @@
 import * as vscode from 'vscode';
-import { createHostAdapters } from '@tars/host';
+import {
+  ACCEPT_FILE_COMMAND,
+  ACCEPT_HUNK_COMMAND,
+  OPEN_FULL_DIFF_COMMAND,
+  REJECT_FILE_COMMAND,
+  REJECT_HUNK_COMMAND,
+  createHostAdapters,
+} from '@tars/host';
 import { CHAT_VIEW_ID, ChatViewProvider } from './chat-view-provider.js';
 import { TarsStatusBar } from './status-bar.js';
 
@@ -66,6 +73,25 @@ export function activate(context: vscode.ExtensionContext): void {
     // checkpoint is usually that the workspace looks wrong, not the chat.
     vscode.commands.registerCommand(RESTORE_CHECKPOINT_COMMAND, () => {
       void provider.restoreCheckpoint();
+    }),
+    // The in-editor review controls. Invoked by the CodeLenses above each hunk,
+    // and hidden from the palette in package.json: they take a URI and an index
+    // that only a lens can supply, so from the palette they would arrive with
+    // neither and silently do nothing.
+    vscode.commands.registerCommand(ACCEPT_HUNK_COMMAND, (uri: vscode.Uri, index: number) => {
+      void provider.inlineDiff.accept(uri, index);
+    }),
+    vscode.commands.registerCommand(REJECT_HUNK_COMMAND, (uri: vscode.Uri, index: number) => {
+      void provider.inlineDiff.reject(uri, index);
+    }),
+    vscode.commands.registerCommand(ACCEPT_FILE_COMMAND, (uri: vscode.Uri) => {
+      void provider.inlineDiff.acceptFile(uri);
+    }),
+    vscode.commands.registerCommand(REJECT_FILE_COMMAND, (uri: vscode.Uri) => {
+      void provider.inlineDiff.rejectFile(uri);
+    }),
+    vscode.commands.registerCommand(OPEN_FULL_DIFF_COMMAND, (uri: vscode.Uri) => {
+      void provider.openFullDiff(uri);
     }),
   );
 

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import type { HostPorts } from '@tars/core';
+import type { InlineDiffController } from '@tars/host';
 import {
   PROTOCOL_VERSION,
   assertNever,
@@ -8,7 +9,7 @@ import {
   type ReviewActionMessage,
   type WebviewToHost,
 } from '@tars/shared';
-import { readPermissionPolicy } from './config.js';
+import { readOpenEditedFiles, readPermissionPolicy } from './config.js';
 import { resolveWorkspacePath } from './paths.js';
 import { ReviewController } from './review-controller.js';
 import { SessionController } from './session-controller.js';
@@ -43,7 +44,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
     // Both controllers outlive every `WebviewView` this provider resolves, so
     // they are built once here and torn down with the extension, not the panel.
-    this.review = new ReviewController({ ports, post, resolve: resolveWorkspacePath });
+    this.review = new ReviewController({
+      ports,
+      post,
+      resolve: resolveWorkspacePath,
+      openEditedFiles: () => readOpenEditedFiles(ports),
+    });
     this.controller = new SessionController({
       ports,
       post,
@@ -58,6 +64,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Restores the workspace to a checkpoint. Reachable from the palette. */
   restoreCheckpoint(): Promise<void> {
     return this.review.restoreCheckpoint();
+  }
+
+  /** The in-editor hunk review, for the commands the CodeLenses invoke. */
+  get inlineDiff(): InlineDiffController {
+    return this.review.inlineDiff;
+  }
+
+  /** Opens the full side-by-side diff for a file under review. */
+  openFullDiff(uri: vscode.Uri): Promise<void> {
+    return this.review.review(uri.fsPath);
   }
 
   /** Starts a fresh conversation and brings the panel forward to show it. */

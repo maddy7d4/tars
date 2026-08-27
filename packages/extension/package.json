@@ -56,6 +56,26 @@
       {
         "command": "tars.restoreCheckpoint",
         "title": "TARS: Restore a Checkpoint"
+      },
+      {
+        "command": "tars.acceptHunk",
+        "title": "TARS: Accept This Change"
+      },
+      {
+        "command": "tars.rejectHunk",
+        "title": "TARS: Reject This Change"
+      },
+      {
+        "command": "tars.acceptFile",
+        "title": "TARS: Accept All Changes in File"
+      },
+      {
+        "command": "tars.rejectFile",
+        "title": "TARS: Reject All Changes in File"
+      },
+      {
+        "command": "tars.openFullDiff",
+        "title": "TARS: Open Full Diff"
       }
     ],
     "keybindings": [
@@ -95,8 +115,37 @@
             ]
           },
           "markdownDescription": "Per-tool overrides for `#tars.permissionPolicy#`, keyed by tool name \u2014 for example `{ \"Bash\": \"deny\" }`. An entry is a direct instruction and wins over both the default and the built-in gating of destructive and outward-facing tools (see `Docs/TARS_SPEC.md` \u00a74.2)."
+        },
+        "tars.review.openEditedFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bring a file forward when TARS edits it, so its changes are visible for review. Turn off if you prefer to open edited files yourself from the chat panel."
         }
       }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "tars.acceptHunk",
+          "when": "false"
+        },
+        {
+          "command": "tars.rejectHunk",
+          "when": "false"
+        },
+        {
+          "command": "tars.acceptFile",
+          "when": "false"
+        },
+        {
+          "command": "tars.rejectFile",
+          "when": "false"
+        },
+        {
+          "command": "tars.openFullDiff",
+          "when": "false"
+        }
+      ]
     }
   },
   "scripts": {

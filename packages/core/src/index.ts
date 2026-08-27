@@ -62,15 +62,20 @@ export type {
 export {
   ChangeSetBuilder,
   EMPTY_CONTENT_HASH,
+  acceptAll,
+  acceptHunk,
   buildChangeSet,
   diffLines,
   diffStats,
   hashContent,
   isContentHash,
   proposalFromEvent,
+  rejectAll,
+  rejectHunk,
   splitLines,
   toHunks,
   toUnifiedDiff,
+  viewHunks,
 } from './diff/index.js';
 export type {
   Baseline,
@@ -83,6 +88,8 @@ export type {
   FileChange,
   FileChangeKind,
   FileEditProposal,
+  HunkContext,
+  HunkView,
 } from './diff/index.js';
 
 export { BlobStore, CHECKPOINT_FILE_VERSION, CheckpointStore } from './checkpoint/index.js';

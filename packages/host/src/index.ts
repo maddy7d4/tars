@@ -47,5 +47,21 @@ export { VscodeStorage } from './adapters/storage.js';
 export { VscodeTerminals } from './adapters/terminal.js';
 export { VscodeWorkspace } from './adapters/workspace.js';
 
-export { ChangeApplier, DiffContentProvider, TARS_DIFF_SCHEME } from './review/index.js';
-export type { ApplyOutcome, ChangeApplierDeps } from './review/index.js';
+export {
+  ACCEPT_FILE_COMMAND,
+  ACCEPT_HUNK_COMMAND,
+  ChangeApplier,
+  DiffContentProvider,
+  HunkLensProvider,
+  InlineDiffController,
+  OPEN_FULL_DIFF_COMMAND,
+  REJECT_FILE_COMMAND,
+  REJECT_HUNK_COMMAND,
+  TARS_DIFF_SCHEME,
+} from './review/index.js';
+export type {
+  ApplyOutcome,
+  ChangeApplierDeps,
+  InlineDiffControllerDeps,
+  InlineDiffState,
+} from './review/index.js';

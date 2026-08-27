@@ -7,6 +7,7 @@ import type { PermissionPolicy } from '@tars/shared';
  */
 const PERMISSION_POLICY_SECTION = 'tars.permissionPolicy';
 const TOOL_PERMISSIONS_SECTION = 'tars.toolPermissions';
+const OPEN_EDITED_FILES_SECTION = 'tars.review.openEditedFiles';
 
 function isPermissionPolicy(value: unknown): value is PermissionPolicy {
   return value === 'always_allow' || value === 'ask' || value === 'deny';
@@ -41,4 +42,15 @@ export function readToolPolicies(ports: HostPorts): Readonly<Record<string, Perm
     }
   }
   return policies;
+}
+
+/**
+ * Whether a file the agent edits is brought forward so its hunks are visible.
+ *
+ * On by default: the review is in the editor, so a change in a file nobody opens
+ * is a change nobody reviews. Off is for users who would rather drive from the
+ * chat panel's file list on a turn that touches many files.
+ */
+export function readOpenEditedFiles(ports: HostPorts): boolean {
+  return ports.workspace.getConfiguration<boolean>(OPEN_EDITED_FILES_SECTION, true);
 }

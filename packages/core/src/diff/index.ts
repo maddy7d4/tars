@@ -9,3 +9,11 @@ export type {
 } from './change-set.js';
 export { diffLines, diffStats, splitLines, toHunks, toUnifiedDiff } from './line-diff.js';
 export type { DiffHunk, DiffOp, DiffOpKind, DiffOptions, DiffStats } from './line-diff.js';
+export {
+  acceptAll,
+  acceptHunk,
+  rejectAll,
+  rejectHunk,
+  viewHunks,
+} from './hunk-ops.js';
+export type { HunkContext, HunkView } from './hunk-ops.js';

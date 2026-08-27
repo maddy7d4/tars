@@ -50,11 +50,27 @@ describe('ReviewBar', () => {
     expect(screen.getByRole('heading').textContent).toBe('1 file changed');
   });
 
-  it('opens a diff for the file the user clicked', async () => {
+  it('opens the file itself when the path is clicked', async () => {
     render(<ReviewBar />);
     setChanges([change(), change({ path: 'src/b.ts' })]);
 
     await userEvent.click(screen.getByRole('button', { name: 'src/b.ts' }));
+
+    // The per-hunk controls are on the code, so the list is a way into the
+    // editor rather than a review surface of its own.
+    expect(vi.mocked(postToHost)).toHaveBeenCalledWith({
+      type: 'open_file',
+      path: 'src/b.ts',
+    });
+  });
+
+  it('offers the side-by-side diff on its own control', async () => {
+    render(<ReviewBar />);
+    setChanges([change({ path: 'src/b.ts' })]);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Open a side-by-side diff of src/b.ts' }),
+    );
 
     expect(vi.mocked(postToHost)).toHaveBeenCalledWith({
       type: 'review_action',
@@ -72,7 +88,7 @@ describe('ReviewBar', () => {
     expect(screen.getByRole('button', { name: 'Keep' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Revert' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
-    expect(screen.getByText('already written to disk')).toBeTruthy();
+    expect(screen.getByText(/accept and reject each change in the editor/)).toBeTruthy();
   });
 
   it('sends keep', async () => {

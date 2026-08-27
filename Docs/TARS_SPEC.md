@@ -287,6 +287,51 @@ are the same operation. A blob that cannot be read is reported by path rather
 than failing the restore, so nine recovered files plus a named casualty beats an
 all-or-nothing refusal.
 
+### 6.5 In-editor hunk review
+
+Review happens **where the change is**: the edited file is brought forward, its
+changed regions are coloured, and each one carries Accept and Reject. A change
+the user has to navigate to is a change most users will not look at, and the
+chat panel's file list is therefore a way *into* the editor rather than a review
+surface of its own.
+
+**State is one string per file — the baseline.** Hunks are never stored. They are
+recomputed from `(baseline, document text)` whenever anything moves, which is
+what lets the user type mid-review, undo, save, or let the agent write again
+without any decision going stale. The two operations are asymmetric, and that
+asymmetry is what removes the bookkeeping:
+
+| Action | Effect |
+| --- | --- |
+| **Reject hunk** | Rewrites the *file*, restoring that region from the baseline. |
+| **Accept hunk** | Rewrites the *baseline*, absorbing that region from the file. |
+
+An accepted hunk therefore stops being a hunk on the next computation, with no
+"accepted" set to maintain and no cached line range to invalidate. Both converge
+on "the two texts agree", from opposite directions, at which point the file
+leaves review.
+
+Rejections are applied as a `WorkspaceEdit` for the reason in §6.3: a user who
+rejects by mistake presses `Ctrl+Z`, not another TARS command.
+
+**Rendering deletions.** Removed lines are not in the document, and the public
+VS Code API has no way to insert a phantom line — editors that show deletions as
+red rows do it by patching the editor, which TARS will not do (constraint C1).
+A deletion is therefore rendered as a red marker on the line that replaced it,
+carrying the removed text inline and the full block in the hover, with the
+side-by-side diff one click away. Less pretty than a phantom row, and it loses
+nothing.
+
+Per-hunk controls are `CodeLens`: a public API, keyboard reachable, scrolling
+with the code it belongs to, and inheriting the user's font and theme. A custom
+overlay would need absolute positioning that breaks on wrapped lines and folded
+regions, and would be invisible to a screen reader.
+
+**Whole-file controls** (`Keep`, `Revert`) remain in the chat panel and act on
+the whole turn, backed by the checkpoint. The per-hunk controls and the
+whole-turn controls are independent: the former move the baseline, the latter
+restore it.
+
 ---
 
 ## 7. Context Engine

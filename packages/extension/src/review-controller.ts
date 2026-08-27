@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { Baseline, FileChange, HostPorts, LoggerPort } from '@tars/core';
 import { ChangeSetBuilder, CheckpointStore, proposalFromEvent } from '@tars/core';
-import { ChangeApplier, DiffContentProvider } from '@tars/host';
+import { ChangeApplier, DiffContentProvider, HunkLensProvider, InlineDiffController } from '@tars/host';
 import type { AgentEvent, HostToWebview, PendingChangeSummary } from '@tars/shared';
 
 /**
@@ -28,6 +28,8 @@ export interface ReviewControllerDeps {
   readonly post: (message: HostToWebview) => void;
   /** Resolves a path from an agent event to a URI. */
   readonly resolve: (path: string) => vscode.Uri;
+  /** Whether an edited file should be brought forward so its hunks are visible. */
+  readonly openEditedFiles: () => boolean;
 }
 
 export class ReviewController implements vscode.Disposable {
@@ -35,6 +37,9 @@ export class ReviewController implements vscode.Disposable {
   private readonly checkpoints: CheckpointStore;
   private readonly diffs = new DiffContentProvider();
   private readonly applier: ChangeApplier;
+  /** In-editor hunk review: coloured regions with Accept and Reject on each (§6.5). */
+  private readonly inline: InlineDiffController;
+  private readonly lenses: HunkLensProvider;
 
   private builder = new ChangeSetBuilder();
   /**
@@ -63,6 +68,24 @@ export class ReviewController implements vscode.Disposable {
       logger: deps.ports.logger,
     });
     this.applier = new ChangeApplier({ resolve: deps.resolve });
+    this.inline = new InlineDiffController({
+      resolve: deps.resolve,
+      onChanged: () => {
+        this.lenses.refresh();
+        this.publish();
+      },
+    });
+    this.lenses = new HunkLensProvider(this.inline);
+  }
+
+  /** The in-editor review surface, for the commands the lenses invoke. */
+  get inlineDiff(): InlineDiffController {
+    return this.inline;
+  }
+
+  /** Refreshes the hunk lenses after a decision taken from the editor. */
+  refreshLenses(): void {
+    this.lenses.refresh();
   }
 
   /** Files awaiting review. Empty when there is nothing to decide. */
@@ -92,7 +115,11 @@ export class ReviewController implements vscode.Disposable {
       const baseline = await this.baselineFor(event.path);
       await this.snapshot(event.path, baseline);
       this.builder.add(proposalFromEvent(event), baseline);
+      // Registered before the tool runs, so the moment the write lands the
+      // editor already knows what the file used to be and paints the hunks.
+      this.inline.track(event.path, baseline.content ?? '');
       this.publish();
+      await this.reveal(event.path);
     } catch (error: unknown) {
       // Reported, never swallowed: without a baseline there is no checkpoint, and
       // a user who is not told that has lost the ability to revert without knowing it.
@@ -122,6 +149,7 @@ export class ReviewController implements vscode.Disposable {
   /** Accepts the changes and retires the review. Nothing is written: they are already on disk. */
   keep(): void {
     const count = this.changes.length;
+    this.inline.acceptEverything();
     this.reset();
     if (count > 0) {
       this.log.log('info', 'kept agent changes', { files: count });
@@ -208,11 +236,44 @@ export class ReviewController implements vscode.Disposable {
     this.checkpointId = null;
     this.eventCount = 0;
     this.diffs.clear();
+    this.inline.clear();
+    this.lenses.refresh();
     this.publish();
   }
 
   dispose(): void {
     this.diffs.dispose();
+    this.inline.dispose();
+    this.lenses.dispose();
+  }
+
+  /**
+   * Brings an edited file forward so its hunks are visible.
+   *
+   * Opened beside nothing and without stealing focus: the user may still be
+   * typing in the chat, and an agent that yanks the cursor mid-sentence for every
+   * file it touches is worse than one that edits quietly. `preview` keeps a
+   * ten-file turn from leaving ten permanent tabs.
+   */
+  private async reveal(path: string): Promise<void> {
+    if (!this.deps.openEditedFiles()) {
+      return;
+    }
+    try {
+      const document = await vscode.workspace.openTextDocument(this.deps.resolve(path));
+      await vscode.window.showTextDocument(document, {
+        preview: true,
+        preserveFocus: true,
+        viewColumn: vscode.ViewColumn.Active,
+      });
+    } catch (error: unknown) {
+      // A file the agent announced but has not written yet is not an error worth
+      // interrupting the turn over; the hunks appear when it lands.
+      this.log.log('debug', 'could not reveal an edited file', {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**
