@@ -17,6 +17,7 @@ import { TarsStatusBar } from './status-bar.js';
 const OPEN_CHAT_COMMAND = 'tars.openChat';
 const NEW_SESSION_COMMAND = 'tars.newSession';
 const INTERRUPT_COMMAND = 'tars.interrupt';
+const RESTORE_CHECKPOINT_COMMAND = 'tars.restoreCheckpoint';
 
 /**
  * Releases the agent sessions. Module-level because `deactivate` has no handle on
@@ -60,6 +61,11 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand(INTERRUPT_COMMAND, () => {
       provider.interrupt();
+    }),
+    // Reachable with the panel closed on purpose: the reason to reach for a
+    // checkpoint is usually that the workspace looks wrong, not the chat.
+    vscode.commands.registerCommand(RESTORE_CHECKPOINT_COMMAND, () => {
+      void provider.restoreCheckpoint();
     }),
   );
 

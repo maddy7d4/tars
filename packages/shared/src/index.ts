@@ -40,6 +40,7 @@ export type {
 export { PROTOCOL_VERSION } from './protocol.js';
 export type {
   AgentEventMessage,
+  ChangeSetMessage,
   ConfigMessage,
   HostErrorMessage,
   HostToWebview,
@@ -47,8 +48,10 @@ export type {
   NewSessionMessage,
   OpenFileMessage,
   PermissionDecisionMessage,
+  PendingChangeSummary,
   PermissionResolvedMessage,
   ReadyMessage,
+  ReviewActionMessage,
   SendPromptMessage,
   SessionStateMessage,
   WebviewReadyMessage,

@@ -5,9 +5,12 @@ import {
   PROTOCOL_VERSION,
   assertNever,
   type HostToWebview,
+  type ReviewActionMessage,
   type WebviewToHost,
 } from '@tars/shared';
 import { readPermissionPolicy } from './config.js';
+import { resolveWorkspacePath } from './paths.js';
+import { ReviewController } from './review-controller.js';
 import { SessionController } from './session-controller.js';
 
 /** Must match the `views` contribution id in package.json. */
@@ -28,21 +31,33 @@ function createNonce(): string {
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | null = null;
   private readonly controller: SessionController;
+  private readonly review: ReviewController;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly ports: HostPorts,
     onBusyChanged: (busy: boolean) => void,
   ) {
-    // The controller outlives every `WebviewView` this provider resolves, so it is
-    // built once here and torn down with the extension, not with the panel.
+    const post = (message: HostToWebview): void => {
+      this.post(message);
+    };
+    // Both controllers outlive every `WebviewView` this provider resolves, so
+    // they are built once here and torn down with the extension, not the panel.
+    this.review = new ReviewController({ ports, post, resolve: resolveWorkspacePath });
     this.controller = new SessionController({
       ports,
-      post: (message) => {
-        this.post(message);
-      },
+      post,
       onBusyChanged,
+      // The review controller sees the same stream the webview does, so the
+      // checkpoint is taken from the `file_edit_proposed` event itself rather
+      // than from a second, separately-ordered notification.
+      onEvent: (event) => this.review.observe(event),
     });
+  }
+
+  /** Restores the workspace to a checkpoint. Reachable from the palette. */
+  restoreCheckpoint(): Promise<void> {
+    return this.review.restoreCheckpoint();
   }
 
   /** Starts a fresh conversation and brings the panel forward to show it. */
@@ -61,6 +76,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
    * will not wait for a subprocess we only asked to stop.
    */
   dispose(): Promise<void> {
+    this.review.dispose();
     return this.controller.dispose();
   }
 
@@ -131,7 +147,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'open_file': {
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(message.path));
+        const document = await vscode.workspace.openTextDocument(resolveWorkspacePath(message.path));
         const editor = await vscode.window.showTextDocument(document, { preview: true });
         if (message.line !== undefined) {
           const position = new vscode.Position(Math.max(0, message.line - 1), 0);
@@ -153,11 +169,34 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'new_session': {
+        this.review.reset();
         await this.controller.newSession();
+        return;
+      }
+      case 'review_action': {
+        await this.handleReviewAction(message);
         return;
       }
       default:
         assertNever(message);
+    }
+  }
+
+  private async handleReviewAction(message: ReviewActionMessage): Promise<void> {
+    switch (message.action) {
+      case 'keep':
+        this.review.keep();
+        return;
+      case 'revert':
+        await this.review.revert();
+        return;
+      case 'review':
+        if (message.path !== undefined) {
+          await this.review.review(message.path);
+        }
+        return;
+      default:
+        assertNever(message.action);
     }
   }
 

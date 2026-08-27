@@ -59,7 +59,42 @@ export type {
   SessionManagerDeps,
 } from './session/index.js';
 
-export { EMPTY_CONTENT_HASH, hashContent, isContentHash } from './diff/index.js';
+export {
+  ChangeSetBuilder,
+  EMPTY_CONTENT_HASH,
+  buildChangeSet,
+  diffLines,
+  diffStats,
+  hashContent,
+  isContentHash,
+  proposalFromEvent,
+  splitLines,
+  toHunks,
+  toUnifiedDiff,
+} from './diff/index.js';
+export type {
+  Baseline,
+  ChangeSet,
+  DiffHunk,
+  DiffOp,
+  DiffOpKind,
+  DiffOptions,
+  DiffStats,
+  FileChange,
+  FileChangeKind,
+  FileEditProposal,
+} from './diff/index.js';
+
+export { BlobStore, CHECKPOINT_FILE_VERSION, CheckpointStore } from './checkpoint/index.js';
+export type {
+  BlobStoreDeps,
+  Checkpoint,
+  CheckpointFile,
+  CheckpointStoreDeps,
+  RestoreResult,
+  RestoredFile,
+  SnapshotInput,
+} from './checkpoint/index.js';
 
 export { ALWAYS_IGNORED, FileIndex, GitignoreFile, IgnoreStack } from './context/index.js';
 export { parseMentions, resolveMentions, stripMentions } from './context/index.js';

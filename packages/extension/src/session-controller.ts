@@ -24,6 +24,14 @@ export interface SessionControllerDeps {
   readonly post: (message: HostToWebview) => void;
   /** Called only on a transition, so the status bar is not rewritten per token. */
   readonly onBusyChanged: (busy: boolean) => void;
+  /**
+   * Observes every event before it reaches the webview.
+   *
+   * The review controller has to snapshot a file *before* the agent's tool
+   * writes it, and `file_edit_proposed` is announced before the tool runs. Any
+   * separately-ordered notification would race that window.
+   */
+  readonly onEvent?: (event: AgentEvent) => Promise<void>;
 }
 
 const NO_WORKSPACE =
@@ -235,7 +243,15 @@ export class SessionController {
     } else if (event.type === 'permission_request') {
       this.pendingRequests.set(event.requestId, event);
     }
+    // Forwarded before the observer settles: the transcript must not stall behind
+    // a filesystem read, and the observer reports its own failures.
     this.deps.post({ type: 'agent_event', event });
+    void this.deps.onEvent?.(event).catch((error: unknown) => {
+      this.log.log('error', 'event observer failed', {
+        type: event.type,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   }
 
   private awaitDecision(requestId: string): Promise<PermissionDecision> {

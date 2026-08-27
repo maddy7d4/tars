@@ -208,25 +208,84 @@ Strict CSP: nonce'd inline scripts, no `unsafe-eval`, no external origins. All a
 
 ## 6. Edit, Review & Checkpoints
 
+### 6.0 Review is post-hoc, and why
+
+**Corrected during phase 3 implementation.** This section originally described a
+propose-then-apply flow, in which edits were held in a change set until the user
+approved them. That describes something that cannot happen.
+
+TARS uses the Agent SDK's own `Write` and `Edit` tools (ADR 0004 — reuse SDK
+capabilities rather than reimplementing them). Those tools write to the workspace
+themselves. `canUseTool` can hold a tool *before* it runs or refuse it outright,
+but it cannot take the write and defer it, so there is no point at which TARS
+holds proposed content that is not already on disk.
+
+The safety property therefore rests on two things that are real, rather than one
+that is not:
+
+1. **The permission gate (§4.2) runs before the write.** Destructive and
+   outward-facing tools default to `ask`, so the user's approval precedes the
+   edit, not the review.
+2. **The checkpoint (§6.4) is taken before the write.** Every file is snapshotted
+   the moment the agent announces it will edit it — which the SDK emits before
+   the tool executes — so the pre-edit content always exists somewhere.
+
+Review is then an honest **keep or revert** decision over changes that have
+already landed, not an approval gate pretending they have not. The UI says
+"already written to disk" for the same reason.
+
+The alternative — supplying replacement file tools via MCP so TARS owned the
+write — was rejected: it would reimplement the SDK's editing tools, diverge from
+their behaviour on every SDK release, and lose `Edit`'s partial-match semantics.
+
 ### 6.1 Change sets
 
-`file_edit_proposed` events accumulate into a `ChangeSet` in `core` — a pure data structure describing per-file hunks with before/after content hashes.
+`file_edit_proposed` events accumulate into a `ChangeSet` in `core` — a pure data
+structure describing per-file hunks with before/after content hashes. Repeated
+proposals for one file fold into a single entry measured against the original
+baseline, since the net effect is what the user decides about.
+
+A change carries a `stale` flag when the content the edit was computed against is
+not the content the baseline holds. Staleness is surfaced, never resolved
+automatically: rebasing would apply an edit whose context the model never saw,
+and dropping it would lose work.
 
 ### 6.2 Diff presentation
 
-`core` computes the change set; `host` renders it through **VS Code's native diff editor** via a virtual document `TextDocumentContentProvider`.
+`core` computes the change set; `host` renders it through **VS Code's native diff
+editor** via a virtual document `TextDocumentContentProvider` under the
+`tars-diff` scheme, which serves the pre-edit baseline that no longer exists on
+disk.
 
-**Rationale.** Reimplementing a diff viewer inside the webview would duplicate a mature, accessible, theme-aware component the editor already ships — and it would diverge from the user's configured diff settings. TARS contributes the *review workflow* (accept/reject per hunk, batch apply), not a diff renderer.
+**Rationale.** Reimplementing a diff viewer inside the webview would duplicate a
+mature, accessible, theme-aware component the editor already ships — and it would
+diverge from the user's configured diff settings. TARS contributes the *review
+workflow*, not a diff renderer.
 
 ### 6.3 Applying edits
 
-Edits apply as a single `vscode.WorkspaceEdit`. This is atomic and lands in the editor's **own undo stack**, so `Ctrl+Z` reverses an AI edit exactly as it reverses a human one — no bespoke undo system, and no surprising divergence from user expectation.
+Reverts and checkpoint restores apply as a single `vscode.WorkspaceEdit`. This is
+atomic and lands in the editor's **own undo stack**, so `Ctrl+Z` reverses a TARS
+revert exactly as it reverses a human edit — no bespoke undo system, and no
+surprising divergence from user expectation. A user who reverts by mistake gets
+their work back with `Ctrl+Z` rather than needing a second TARS command.
 
 ### 6.4 Checkpoints
 
-Before any apply, `core` snapshots the content of every touched file into a content-addressed store under `globalStorageUri` (SHA-256 keyed; identical content stored once). A checkpoint record references those hashes plus the session event offset.
+Before the agent's first write of a turn, `core` snapshots the content of every
+touched file into a content-addressed store under `globalStorageUri` (SHA-256
+keyed; identical content stored once). A checkpoint record references those
+hashes plus the session event offset, and is extended — and re-persisted — as
+each further file is touched, so a crash mid-turn still leaves a way back.
 
-Restore reconstructs a `WorkspaceEdit` from the snapshot. Because checkpoints reference the session log offset, restoring state and rewinding the conversation are the same operation.
+The first snapshot of a path wins: a later baseline would be the agent's own
+output, which is the one state nobody needs to return to.
+
+Restore reconstructs a `WorkspaceEdit` from the snapshot. Because checkpoints
+reference the session log offset, restoring state and rewinding the conversation
+are the same operation. A blob that cannot be read is reported by path rather
+than failing the restore, so nine recovered files plus a named casualty beats an
+all-or-nothing refusal.
 
 ---
 

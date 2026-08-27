@@ -50,6 +50,34 @@ export interface HostErrorMessage {
   readonly message: string;
 }
 
+/**
+ * One file the agent changed, summarised for review (Docs/TARS_SPEC.md §6.1).
+ *
+ * Content and hunks stay in the host. The webview needs enough to list what
+ * changed and how much, and the actual diff is reviewed in the editor's own diff
+ * viewer (§6.2) — shipping file contents across `postMessage` for every proposal
+ * would cost more than the review UI it feeds.
+ */
+export interface PendingChangeSummary {
+  readonly path: string;
+  readonly kind: 'create' | 'modify' | 'delete';
+  readonly added: number;
+  readonly removed: number;
+  /** The edit was computed against content that has since changed on disk. */
+  readonly stale: boolean;
+}
+
+/**
+ * The change set awaiting review, pushed whenever it changes. An empty `changes`
+ * array means there is nothing to review, which is how the review bar retires.
+ */
+export interface ChangeSetMessage {
+  readonly type: 'change_set';
+  readonly changes: readonly PendingChangeSummary[];
+  readonly added: number;
+  readonly removed: number;
+}
+
 /** Messages the extension host sends into the webview. */
 export type HostToWebview =
   | ReadyMessage
@@ -57,7 +85,8 @@ export type HostToWebview =
   | SessionStateMessage
   | PermissionResolvedMessage
   | ConfigMessage
-  | HostErrorMessage;
+  | HostErrorMessage
+  | ChangeSetMessage;
 
 /** The renderer finished mounting and is able to receive messages. */
 export interface WebviewReadyMessage {
@@ -96,6 +125,24 @@ export interface NewSessionMessage {
   readonly type: 'new_session';
 }
 
+/**
+ * What the user decided about the change set the agent just made.
+ *
+ * The verbs are `keep` and `revert`, not `apply` and `discard`, because the
+ * edits are already on disk: Claude Code's `Write` and `Edit` tools write to the
+ * workspace themselves, and TARS gates them at the permission prompt rather than
+ * holding their output. So review is post-hoc — `keep` dismisses it, and
+ * `revert` restores the checkpoint taken before the tools ran (§6.4).
+ *
+ * `review` opens one file in the editor's native diff viewer (§6.2).
+ */
+export interface ReviewActionMessage {
+  readonly type: 'review_action';
+  readonly action: 'keep' | 'revert' | 'review';
+  /** Required for `review`; ignored otherwise. */
+  readonly path?: string;
+}
+
 /** Messages the webview sends to the extension host. All privilege stays host-side. */
 export type WebviewToHost =
   | WebviewReadyMessage
@@ -103,4 +150,5 @@ export type WebviewToHost =
   | InterruptMessage
   | PermissionDecisionMessage
   | OpenFileMessage
-  | NewSessionMessage;
+  | NewSessionMessage
+  | ReviewActionMessage;

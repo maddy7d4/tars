@@ -4,6 +4,7 @@ import {
   PROTOCOL_VERSION,
   type ContextItem,
   type HostToWebview,
+  type PendingChangeSummary,
   type PermissionPolicy,
 } from '@tars/shared';
 import {
@@ -58,11 +59,29 @@ export interface TarsState {
   /** Bumped whenever `transcript` changes, since its identity cannot say so. */
   readonly revision: number;
 
+  /**
+   * Files the agent changed that the user has not decided about yet.
+   *
+   * Already written to disk — Claude Code's file tools write directly — so this
+   * drives a keep/revert bar, not an approval gate. The gate is the permission
+   * prompt, which ran before the tool did.
+   */
+  readonly pendingChanges: readonly PendingChangeSummary[];
+  readonly pendingAdded: number;
+  readonly pendingRemoved: number;
+
   /** Single entry point for host messages, so the reducer stays exhaustive. */
   readonly receive: (message: HostToWebview) => void;
   /** Echoes the prompt locally and hands it to the host, which owns every privilege. */
   readonly sendPrompt: (text: string, context?: readonly ContextItem[]) => void;
 }
+
+/** Cleared review state, shared by the initial store and `resetTarsStore`. */
+const NO_PENDING_CHANGES = {
+  pendingChanges: [] as readonly PendingChangeSummary[],
+  pendingAdded: 0,
+  pendingRemoved: 0,
+} as const;
 
 /**
  * The buffer lives outside the store because it is mutable by design and zustand's
@@ -96,6 +115,7 @@ export const useTarsStore = create<TarsState>((set, get) => ({
   protocolMismatch: false,
   transcript: buffer.items,
   revision: 0,
+  ...NO_PENDING_CHANGES,
 
   receive: (message) => {
     set((state) => {
@@ -143,6 +163,13 @@ export const useTarsStore = create<TarsState>((set, get) => ({
           return {
             permissionPolicy: message.permissionPolicy,
             workspaceName: message.workspaceName,
+          };
+
+        case 'change_set':
+          return {
+            pendingChanges: message.changes,
+            pendingAdded: message.added,
+            pendingRemoved: message.removed,
           };
 
         case 'host_error':
@@ -193,5 +220,6 @@ export function resetTarsStore(): void {
     protocolMismatch: false,
     transcript: buffer.items,
     revision: 0,
+    ...NO_PENDING_CHANGES,
   });
 }

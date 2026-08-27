@@ -5,6 +5,7 @@ import { postToHost } from './vscode-api.js';
 import { MessageList } from './components/MessageList.js';
 import { PermissionPrompt } from './components/PermissionPrompt.js';
 import { PromptInput } from './components/PromptInput.js';
+import { ReviewBar } from './components/ReviewBar.js';
 import { StatusHeader } from './components/StatusHeader.js';
 
 export function App(): JSX.Element {
@@ -43,6 +44,9 @@ export function App(): JSX.Element {
           {/* Pending approvals sit between the transcript and the input, where the
               user's attention already is when a turn stalls waiting on them. */}
           <PermissionPrompt requests={pendingPermissions} />
+          {/* Below the approval prompt: an approval blocks the agent and must be
+              answered first, while a review can wait as long as the user likes. */}
+          <ReviewBar />
           <PromptInput />
         </>
       )}

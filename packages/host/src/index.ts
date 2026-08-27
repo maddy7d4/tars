@@ -46,3 +46,6 @@ export { VscodeSecrets } from './adapters/secrets.js';
 export { VscodeStorage } from './adapters/storage.js';
 export { VscodeTerminals } from './adapters/terminal.js';
 export { VscodeWorkspace } from './adapters/workspace.js';
+
+export { ChangeApplier, DiffContentProvider, TARS_DIFF_SCHEME } from './review/index.js';
+export type { ApplyOutcome, ChangeApplierDeps } from './review/index.js';
