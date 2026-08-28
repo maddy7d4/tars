@@ -442,6 +442,20 @@ attached a file.
 
 Coverage concentrates in `core` precisely because the dependency rule made it cheap to test there. `host` stays thin so that little logic requires the slow harness.
 
+The integration suite runs **after the build**, because it loads the real bundle
+in a real editor — which is the point of it. It asserts only what a fake cannot
+answer: that the manifest activates, that every contributed command is actually
+registered, that the settings schema matches what the readers expect, and that
+the engine floor is still the one §8.4 requires. The recurring failure it catches
+is a manifest and an implementation drifting apart.
+
+It earned that place immediately. VS Code loads the extension with `require`, so
+the bundle is CommonJS, and esbuild replaces `import.meta` with an empty object
+there. The Agent SDK — authored as ESM — calls `createRequire(import.meta.url)`
+at module scope, so the extension threw before `activate` was ever reached. Every
+unit test passed, because nothing under test was what broke. The build now
+defines `import.meta.url` to the bundle's own file URL.
+
 ### 8.2 Build
 
 - `extension` and `host` → **esbuild** (fast, tree-shaking, single CommonJS bundle as VS Code expects).

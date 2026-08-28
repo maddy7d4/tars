@@ -12,10 +12,11 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "pnpm -r test",
+    "test": "pnpm -r --filter '!tars' test",
     "clean": "pnpm -r clean",
     "package": "pnpm --filter ./packages/extension package",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:integration",
+    "test:integration": "pnpm --filter tars test"
   },
   "devDependencies": {
     "@eslint/js": "^9",

@@ -37,11 +37,17 @@ jobs:
       - name: Lint (includes the core/shared boundary rule)
         run: pnpm lint
 
-      - name: Test
+      - name: Test (core and webview)
         run: pnpm test
 
       - name: Build
         run: pnpm build
+
+      # After the build, because the suite loads the real bundle in a real
+      # editor — which is the point of it. `xvfb-run` because VS Code needs a
+      # display even when every test is headless.
+      - name: Integration tests (real VS Code)
+        run: xvfb-run -a pnpm test:integration
 
       - name: Package .vsix
         run: pnpm package

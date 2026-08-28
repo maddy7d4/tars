@@ -56,6 +56,13 @@ export default tseslint.config(
       // Tooling scratch dirs: not project source, not covered by any tsconfig.
       '.remember/**',
       '.claude/**',
+      // A whole downloaded VS Code lives here once the integration suite has run.
+      // Linting it exhausts the heap long before it finds anything.
+      '**/.vscode-test/**',
+      '**/*.vsix',
+      // Fixtures are input to the integration suite, not source: they are
+      // deliberately trivial and belong to no tsconfig.
+      'packages/extension/test/fixtures/**',
     ],
   },
 

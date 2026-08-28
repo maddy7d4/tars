@@ -1,13 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
+    "rootDir": ".",
     // esbuild owns `dist/` — it writes the single CommonJS bundle VS Code loads.
     // tsc is typecheck-only here, so its output goes to `out/`, which cannot
     // collide and is already lint- and git-ignored.
     "outDir": "out",
-    "types": ["node", "vscode"]
+    "types": ["node", "vscode", "mocha"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [{ "path": "../shared" }, { "path": "../core" }, { "path": "../host" }]
 }

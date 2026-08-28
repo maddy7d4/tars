@@ -16,10 +16,7 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onView:tars.chat",
-    "onCommand:tars.openChat",
-    "onCommand:tars.newSession",
-    "onCommand:tars.interrupt"
+    "onView:tars.chat"
   ],
   "contributes": {
     "viewsContainers": {
@@ -214,8 +211,9 @@
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -b",
     "clean": "rm -rf dist out *.tsbuildinfo *.vsix",
-    "test": "echo \"@tars/extension: activation is covered by @vscode/test-electron from phase 6\" && exit 0",
-    "package": "vsce package --no-dependencies --allow-missing-repository --out tars-0.0.0.vsix"
+    "test": "node esbuild.test.mjs && node out/test/run-tests.cjs",
+    "package": "vsce package --no-dependencies --allow-missing-repository --out tars-0.0.0.vsix",
+    "build:tests": "node esbuild.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",
@@ -225,6 +223,24 @@
   },
   "devDependencies": {
     "@tars/webview-ui": "workspace:*",
-    "@types/vscode": "^1.90.0"
+    "@types/mocha": "^10.0.10",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "mocha": "^11.8.0"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "claude",
+    "anthropic",
+    "chat",
+    "refactor",
+    "copilot",
+    "cursor"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
   }
 }
