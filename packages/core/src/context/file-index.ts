@@ -43,6 +43,15 @@ export class FileIndex {
   private files: IndexedFile[] = [];
   private byPath = new Map<string, IndexedFile>();
   private truncated = false;
+  /**
+   * Every `.gitignore` seen during the walk, retained.
+   *
+   * Without this, `applyChange` would index anything the watcher reported —
+   * and the watcher reports build output. A project that compiles into `dist/`
+   * would fill the index with generated files the moment it was built, which is
+   * exactly when a user is least likely to notice their completions went bad.
+   */
+  private ignores = new IgnoreStack([]);
   private readonly maxFiles: number;
   private readonly maxDepth: number;
   private readonly logger: LoggerPort;
@@ -73,11 +82,13 @@ export class FileIndex {
   /** Replaces the index by walking every folder. Safe to call repeatedly. */
   async build(folders: readonly WorkspaceFolder[]): Promise<void> {
     const collected: IndexedFile[] = [];
+    const ignoreFiles: GitignoreFile[] = [];
     this.truncated = false;
 
     for (const folder of folders) {
-      await this.walk(folder, '', new IgnoreStack([]), 0, collected);
+      await this.walk(folder, '', new IgnoreStack([]), 0, collected, ignoreFiles);
     }
+    this.ignores = new IgnoreStack(ignoreFiles);
 
     // Sorted once at build time so every query returns a stable order without
     // re-sorting per keystroke.
@@ -105,7 +116,7 @@ export class FileIndex {
       return;
     }
 
-    if (this.byPath.has(change.path)) {
+    if (this.byPath.has(change.path) || this.isIgnored(change.path)) {
       return;
     }
     const file: IndexedFile = {
@@ -167,12 +178,27 @@ export class FileIndex {
     return scored.slice(0, limit).map((entry) => entry.file);
   }
 
+  /**
+   * Whether a path is excluded, using the rules gathered by the last build.
+   *
+   * Public because the incremental path needs it and so does anything else that
+   * decides whether a file belongs in context at all.
+   */
+  isIgnored(relativePath: string, isDirectory = false): boolean {
+    const segments = relativePath.split('/');
+    if (segments.some((segment) => ALWAYS_IGNORED.includes(segment))) {
+      return true;
+    }
+    return this.ignores.isIgnored(relativePath, isDirectory);
+  }
+
   private async walk(
     folder: WorkspaceFolder,
     relativeDir: string,
     inherited: IgnoreStack,
     depth: number,
     collected: IndexedFile[],
+    ignoreFiles: GitignoreFile[],
   ): Promise<void> {
     if (depth > this.maxDepth || collected.length >= this.maxFiles) {
       return;
@@ -199,7 +225,9 @@ export class FileIndex {
     if (entries.some((entry) => entry.name === '.gitignore' && entry.type === 'file')) {
       try {
         const content = await this.deps.fileSystem.readTextFile(`${absoluteDir}/.gitignore`);
-        stack = stack.with(new GitignoreFile(relativeDir, content));
+        const file = new GitignoreFile(relativeDir, content);
+        ignoreFiles.push(file);
+        stack = stack.with(file);
       } catch {
         // A .gitignore that vanished mid-walk simply contributes no rules.
       }
@@ -222,7 +250,7 @@ export class FileIndex {
       }
 
       if (isDirectory) {
-        await this.walk(folder, relativePath, stack, depth + 1, collected);
+        await this.walk(folder, relativePath, stack, depth + 1, collected, ignoreFiles);
         continue;
       }
 

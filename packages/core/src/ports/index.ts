@@ -1,5 +1,10 @@
 export type { DirectoryEntry, FileStat, FileSystemPort } from './file-system-port.js';
 export type {
+  FileChangeKind,
+  FileWatcherPort,
+  WatchedFileChange,
+} from './file-watcher-port.js';
+export type {
   EditorSelection,
   OpenDocument,
   Unsubscribe,
@@ -17,6 +22,7 @@ export type { LoggerPort, LogLevel } from './logger-port.js';
 import type { ClockPort } from './clock-port.js';
 import type { DiagnosticsPort } from './diagnostics-port.js';
 import type { FileSystemPort } from './file-system-port.js';
+import type { FileWatcherPort } from './file-watcher-port.js';
 import type { GitPort } from './git-port.js';
 import type { LoggerPort } from './logger-port.js';
 import type { SecretsPort } from './secrets-port.js';
@@ -36,6 +42,7 @@ export interface HostPorts {
   readonly terminal: TerminalPort;
   readonly git: GitPort;
   readonly diagnostics: DiagnosticsPort;
+  readonly fileWatcher: FileWatcherPort;
   readonly secrets: SecretsPort;
   readonly storage: StoragePort;
   readonly clock: ClockPort;

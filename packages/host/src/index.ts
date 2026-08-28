@@ -3,6 +3,7 @@ import type { HostPorts } from '@tars/core';
 import { SystemClock } from './adapters/clock.js';
 import { VscodeDiagnostics } from './adapters/diagnostics.js';
 import { VscodeFileSystem } from './adapters/file-system.js';
+import { VscodeFileWatcher } from './adapters/file-watcher.js';
 import { VscodeGit } from './adapters/git.js';
 import { OutputChannelLogger } from './adapters/logger.js';
 import { VscodeSecrets } from './adapters/secrets.js';
@@ -30,6 +31,7 @@ export function createHostAdapters(context: vscode.ExtensionContext): HostPorts 
     terminal: terminals,
     git: new VscodeGit(),
     diagnostics: new VscodeDiagnostics(),
+    fileWatcher: new VscodeFileWatcher(),
     secrets: new VscodeSecrets(context.secrets),
     storage: new VscodeStorage(context),
     clock: new SystemClock(),
@@ -40,12 +42,16 @@ export function createHostAdapters(context: vscode.ExtensionContext): HostPorts 
 export { SystemClock } from './adapters/clock.js';
 export { VscodeDiagnostics } from './adapters/diagnostics.js';
 export { VscodeFileSystem } from './adapters/file-system.js';
+export { VscodeFileWatcher } from './adapters/file-watcher.js';
 export { VscodeGit } from './adapters/git.js';
 export { OutputChannelLogger } from './adapters/logger.js';
 export { VscodeSecrets } from './adapters/secrets.js';
 export { VscodeStorage } from './adapters/storage.js';
 export { VscodeTerminals } from './adapters/terminal.js';
 export { VscodeWorkspace } from './adapters/workspace.js';
+
+export { searchSymbols } from './context/index.js';
+export type { SymbolMatch } from './context/index.js';
 
 export {
   ACCEPT_FILE_COMMAND,

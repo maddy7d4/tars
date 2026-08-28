@@ -78,6 +78,37 @@ export interface ChangeSetMessage {
   readonly removed: number;
 }
 
+/**
+ * One completion for an `@`-mention.
+ *
+ * `detail` is the containing directory rather than the full path: the label
+ * already carries the basename, and a list of full paths is unreadable at panel
+ * width. The host sends the full path separately because that is what gets
+ * inserted.
+ */
+export interface MentionCandidate {
+  readonly kind: 'file' | 'symbol' | 'selection' | 'diagnostics';
+  /** What the user sees, e.g. a basename or symbol name. */
+  readonly label: string;
+  /** What is inserted into the prompt, without the leading `@`. */
+  readonly insert: string;
+  /** Secondary text, e.g. the containing directory or a symbol's kind. */
+  readonly detail: string;
+}
+
+/**
+ * Completions for the query the webview asked about.
+ *
+ * Carries the `query` back so a late reply for a prefix the user has already
+ * typed past can be discarded. Without it a slow response would repopulate the
+ * list with results for text that is no longer there.
+ */
+export interface MentionResultsMessage {
+  readonly type: 'mention_results';
+  readonly query: string;
+  readonly candidates: readonly MentionCandidate[];
+}
+
 /** Messages the extension host sends into the webview. */
 export type HostToWebview =
   | ReadyMessage
@@ -86,7 +117,8 @@ export type HostToWebview =
   | PermissionResolvedMessage
   | ConfigMessage
   | HostErrorMessage
-  | ChangeSetMessage;
+  | ChangeSetMessage
+  | MentionResultsMessage;
 
 /** The renderer finished mounting and is able to receive messages. */
 export interface WebviewReadyMessage {
@@ -143,6 +175,19 @@ export interface ReviewActionMessage {
   readonly path?: string;
 }
 
+/**
+ * Asks for `@`-mention completions.
+ *
+ * The webview holds no index — resolving a path is a privileged operation and
+ * the index lives in core (Docs/TARS_SPEC.md §5.1, §7.2). So completion is a
+ * round trip rather than a local filter over a pushed file list, which would
+ * mean shipping every path in the workspace across `postMessage` on connect.
+ */
+export interface MentionQueryMessage {
+  readonly type: 'mention_query';
+  readonly query: string;
+}
+
 /** Messages the webview sends to the extension host. All privilege stays host-side. */
 export type WebviewToHost =
   | WebviewReadyMessage
@@ -151,4 +196,5 @@ export type WebviewToHost =
   | PermissionDecisionMessage
   | OpenFileMessage
   | NewSessionMessage
-  | ReviewActionMessage;
+  | ReviewActionMessage
+  | MentionQueryMessage;

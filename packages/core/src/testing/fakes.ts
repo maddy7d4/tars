@@ -1,9 +1,11 @@
 import type { JsonValue } from '@tars/shared';
 import type { ClockPort } from '../ports/clock-port.js';
 import type { DirectoryEntry, FileStat, FileSystemPort } from '../ports/file-system-port.js';
+import type { FileWatcherPort, WatchedFileChange } from '../ports/file-watcher-port.js';
 import type { LoggerPort, LogLevel } from '../ports/logger-port.js';
 import type { SecretsPort } from '../ports/secrets-port.js';
 import type { StoragePort } from '../ports/storage-port.js';
+import type { Unsubscribe } from '../ports/workspace-port.js';
 
 /**
  * The test doubles named in Docs TARS_SPEC §3.2, in one place so every test in
@@ -240,5 +242,31 @@ export class BufferLogger implements LoggerPort {
   /** Records at or above `level`, for asserting that a failure was reported. */
   at(level: LogLevel): readonly LogRecord[] {
     return this.records.filter((record) => record.level === level);
+  }
+}
+
+/**
+ * In-memory `FileWatcherPort`. Tests drive it by calling `emit` directly, so a
+ * change is delivered synchronously and the assertion needs no timer.
+ */
+export class MemoryFileWatcher implements FileWatcherPort {
+  private readonly listeners = new Set<(change: WatchedFileChange) => void>();
+
+  watch(listener: (change: WatchedFileChange) => void): Unsubscribe {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /** True while something is subscribed, so a leaked watcher is observable. */
+  get isWatching(): boolean {
+    return this.listeners.size > 0;
+  }
+
+  emit(change: WatchedFileChange): void {
+    for (const listener of this.listeners) {
+      listener(change);
+    }
   }
 }

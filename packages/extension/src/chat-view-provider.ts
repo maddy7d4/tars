@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import type { HostPorts } from '@tars/core';
+import { WorkspaceIndex } from '@tars/core';
 import type { InlineDiffController } from '@tars/host';
 import {
   PROTOCOL_VERSION,
@@ -10,6 +11,7 @@ import {
   type WebviewToHost,
 } from '@tars/shared';
 import { readOpenEditedFiles, readPermissionPolicy } from './config.js';
+import { MentionProvider } from './mention-provider.js';
 import { resolveWorkspacePath } from './paths.js';
 import { ReviewController } from './review-controller.js';
 import { SessionController } from './session-controller.js';
@@ -33,6 +35,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | null = null;
   private readonly controller: SessionController;
   private readonly review: ReviewController;
+  private readonly index: WorkspaceIndex;
+  private readonly mentions: MentionProvider;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -50,6 +54,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       resolve: resolveWorkspacePath,
       openEditedFiles: () => readOpenEditedFiles(ports),
     });
+    // The index builds lazily on first use, so a window whose panel is never
+    // opened does not pay for the walk.
+    this.index = new WorkspaceIndex({
+      fileSystem: ports.fileSystem,
+      workspace: ports.workspace,
+      diagnostics: ports.diagnostics,
+      fileWatcher: ports.fileWatcher,
+      logger: ports.logger,
+    });
+    this.mentions = new MentionProvider({ ports, index: this.index });
     this.controller = new SessionController({
       ports,
       post,
@@ -93,6 +107,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
    */
   dispose(): Promise<void> {
     this.review.dispose();
+    this.index.dispose();
     return this.controller.dispose();
   }
 
@@ -173,7 +188,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'send_prompt': {
-        await this.controller.sendPrompt(message.text, message.context);
+        // Mentions are resolved here rather than in the webview: resolving a
+        // path is privileged, and the index lives behind the port boundary.
+        const resolved = await this.index.resolve(message.text);
+        if (resolved.unresolved.length > 0) {
+          // Named, not silently dropped: a user who typed `@thing.ts` and got
+          // nothing must be told, or they will believe they attached a file.
+          this.post({
+            type: 'host_error',
+            message: `TARS could not resolve: ${resolved.unresolved.map((name) => `@${name}`).join(', ')}`,
+          });
+        }
+        await this.controller.sendPrompt(resolved.text, [
+          ...message.context,
+          ...resolved.context,
+        ]);
+        return;
+      }
+      case 'mention_query': {
+        const candidates = await this.mentions.complete(message.query);
+        this.post({ type: 'mention_results', query: message.query, candidates });
         return;
       }
       case 'interrupt': {

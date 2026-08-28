@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MentionCandidate } from '@tars/shared';
 import { resetTarsStore, useTarsStore } from '../store.js';
 import { postToHost } from '../vscode-api.js';
 import { PromptInput } from './PromptInput.js';
@@ -102,5 +103,175 @@ describe('PromptInput', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
 
     expect(vi.mocked(postToHost)).toHaveBeenCalledWith({ type: 'interrupt' });
+  });
+});
+
+/**
+ * `@`-mention completion.
+ *
+ * The popup is driven entirely from the caret, so these exercise it through real
+ * typing rather than by setting store state: the bug worth catching is a list
+ * that opens or closes at the wrong moment, and that only shows up in the
+ * interaction.
+ */
+function candidates(): readonly MentionCandidate[] {
+  return [
+    { kind: 'file', label: 'index.ts', insert: 'src/index.ts', detail: 'src' },
+    { kind: 'file', label: 'index.test.ts', insert: 'src/index.test.ts', detail: 'src' },
+    { kind: 'selection', label: 'selection', insert: 'selection', detail: 'the code you selected' },
+  ];
+}
+
+function respond(query: string): void {
+  act(() => {
+    useTarsStore.getState().receive({ type: 'mention_results', query, candidates: candidates() });
+  });
+}
+
+describe('PromptInput mentions', () => {
+  it('asks the host for completions as the mention is typed', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+
+    await userEvent.type(box(), 'open @ind');
+
+    expect(vi.mocked(postToHost)).toHaveBeenCalledWith({ type: 'mention_query', query: 'ind' });
+  });
+
+  it('opens the list only once candidates arrive', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+
+    await userEvent.type(box(), 'open @ind');
+    // The query is in flight; nothing is shown until there is something to show.
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    respond('ind');
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+  });
+
+  it('ignores a reply for a prefix the user has already typed past', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @index');
+
+    // A slow language server answering "ind" must not repopulate the list with
+    // matches for text that is no longer on screen.
+    respond('ind');
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('completes the mention into the prompt when a candidate is picked', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+
+    await userEvent.click(screen.getByRole('option', { name: /index\.ts src/ }));
+
+    // The full path is inserted, not the label the user was shown.
+    expect(box().value).toBe('open @src/index.ts ');
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('marks the input as a combobox and announces the highlighted option', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+
+    // Focus stays in the textarea, so the ARIA combobox pattern is what makes
+    // the list usable without sight.
+    expect(box().getAttribute('aria-expanded')).toBe('true');
+    expect(box().getAttribute('aria-activedescendant')).toBe('tars-mention-popup-option-0');
+  });
+
+  it('moves the highlight with the arrow keys and wraps around', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+
+    await userEvent.keyboard('{ArrowDown}');
+    expect(box().getAttribute('aria-activedescendant')).toBe('tars-mention-popup-option-1');
+
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}');
+    expect(box().getAttribute('aria-activedescendant')).toBe('tars-mention-popup-option-2');
+  });
+
+  it('accepts the highlighted candidate on Enter instead of sending', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+
+    await userEvent.keyboard('{Enter}');
+
+    // Enter belongs to the popup while it is open; sending here would submit a
+    // half-typed mention the user was in the middle of choosing.
+    expect(box().value).toBe('open @src/index.ts ');
+    expect(vi.mocked(postToHost)).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'send_prompt' }),
+    );
+  });
+
+  it('accepts on Tab as well', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+
+    await userEvent.keyboard('{Tab}');
+    expect(box().value).toBe('open @src/index.ts ');
+  });
+
+  it('dismisses on Escape without changing the prompt', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(box().value).toBe('open @ind');
+  });
+
+  it('sends normally once the popup is closed', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Enter}');
+
+    expect(vi.mocked(postToHost)).toHaveBeenCalledWith({
+      type: 'send_prompt',
+      text: 'open @ind',
+      context: [],
+    });
+  });
+
+  it('does not treat an email address as a mention', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+
+    await userEvent.type(box(), 'mail me@example');
+
+    expect(vi.mocked(postToHost)).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'mention_query' }),
+    );
+  });
+
+  it('closes the list when the mention is finished with a space', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+    expect(screen.getByRole('listbox')).toBeTruthy();
+
+    await userEvent.type(box(), ' ');
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
 });

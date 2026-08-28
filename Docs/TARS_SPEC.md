@@ -349,6 +349,51 @@ The Agent SDK already ships `Glob`, `Grep`, `Read`, and `WebFetch`, and Claude u
 - **Symbol navigation** — `vscode.executeWorkspaceSymbolProvider`. Reuses whatever language servers the user already has installed rather than shipping parsers for N languages. TARS gets accurate symbols for every language the user's editor supports, for free.
 - **`@`-mentions** — resolve files, symbols, diagnostics, selections, and terminal output into typed context items attached to a turn.
 
+### 7.3 Index freshness
+
+`WorkspaceIndex` owns the `FileIndex` and keeps it current from `FileWatcherPort`.
+
+The initial walk is **deferred to first use**, not done at activation: it is the
+most expensive thing TARS does at startup, and a window whose panel is never
+opened should not pay for it. Watching begins only after that walk completes —
+subscribing earlier would apply changes to an index still being built, which the
+walk would then overwrite.
+
+Creations and deletions update the index incrementally, in O(1). A creation is
+checked against the ignore rules gathered during the walk, because the watcher
+reports build output: without that check, a project compiling into `dist/` would
+fill the index with generated files the moment it was built — precisely when the
+user is least likely to notice their completions went bad. Content edits change
+nothing, since the index holds paths.
+
+A change to any `.gitignore` forces a **debounced rebuild**. Ignore rules can
+hide or reveal whole subtrees, which no incremental update can express; the
+debounce exists because a branch switch rewrites `.gitignore` alongside
+everything else, and a walk per event would turn a checkout into a stall.
+
+### 7.4 Mention completion
+
+Completion is a **round trip to the host**, not a local filter over a pushed file
+list. Resolving a path is privileged and the index lives behind the port
+boundary (§5.1), so pushing every workspace path across `postMessage` on connect
+would be both a large message and a leak of workspace shape into the sandbox.
+
+Three sources merge: the file index, workspace symbols, and the editor-state
+aliases (`@selection`, `@problems`). Files come first because that is what users
+mention overwhelmingly most. Symbols are requested concurrently but abandoned
+after a deadline — a language server still starting must not delay the list past
+the point where the user has finished typing. Showing files now beats showing
+everything later.
+
+Replies carry the query they answer, so a late response for a prefix the user has
+typed past is discarded rather than repopulating the list with stale matches.
+
+Mentions are resolved host-side on send. Anything that resolved is **stripped**
+from the prose, since it is carried structurally and would otherwise reach the
+model twice; anything that did not is **left in place and reported**, because a
+user who typed `@thing.ts` and silently got nothing would believe they had
+attached a file.
+
 ---
 
 ## 8. Testing, CI & Packaging

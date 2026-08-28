@@ -4,6 +4,7 @@ import {
   PROTOCOL_VERSION,
   type ContextItem,
   type HostToWebview,
+  type MentionCandidate,
   type PendingChangeSummary,
   type PermissionPolicy,
 } from '@tars/shared';
@@ -70,6 +71,19 @@ export interface TarsState {
   readonly pendingAdded: number;
   readonly pendingRemoved: number;
 
+  /**
+   * Completions for the `@`-mention being typed, and the query they answer.
+   *
+   * The query is kept so a reply that arrives after the user has typed past it
+   * can be discarded — otherwise a slow language server repopulates the list
+   * with matches for a prefix that is no longer on screen.
+   */
+  readonly mentionQuery: string | null;
+  readonly mentionCandidates: readonly MentionCandidate[];
+
+  /** Asks the host for completions. The webview holds no index of its own. */
+  readonly queryMentions: (query: string | null) => void;
+
   /** Single entry point for host messages, so the reducer stays exhaustive. */
   readonly receive: (message: HostToWebview) => void;
   /** Echoes the prompt locally and hands it to the host, which owns every privilege. */
@@ -81,6 +95,11 @@ const NO_PENDING_CHANGES = {
   pendingChanges: [] as readonly PendingChangeSummary[],
   pendingAdded: 0,
   pendingRemoved: 0,
+} as const;
+
+const NO_MENTIONS = {
+  mentionQuery: null,
+  mentionCandidates: [] as readonly MentionCandidate[],
 } as const;
 
 /**
@@ -116,6 +135,7 @@ export const useTarsStore = create<TarsState>((set, get) => ({
   transcript: buffer.items,
   revision: 0,
   ...NO_PENDING_CHANGES,
+  ...NO_MENTIONS,
 
   receive: (message) => {
     set((state) => {
@@ -172,6 +192,13 @@ export const useTarsStore = create<TarsState>((set, get) => ({
             pendingRemoved: message.removed,
           };
 
+        case 'mention_results':
+          // Dropped when it answers a prefix the user has already typed past.
+          if (state.mentionQuery !== message.query) {
+            return {};
+          }
+          return { mentionCandidates: message.candidates };
+
         case 'host_error':
           appendHostError(buffer, message.message);
           return { ...published(buffer), revision: state.revision + 1 };
@@ -182,12 +209,24 @@ export const useTarsStore = create<TarsState>((set, get) => ({
     });
   },
 
+  queryMentions: (query) => {
+    if (query === null) {
+      set({ ...NO_MENTIONS });
+      return;
+    }
+    // Candidates are cleared on every new query rather than left stale: a list
+    // showing the previous prefix's matches invites picking the wrong file.
+    set({ mentionQuery: query, mentionCandidates: [] });
+    postToHost({ type: 'mention_query', query });
+  },
+
   sendPrompt: (text, context = []) => {
     const trimmed = text.trim();
     if (trimmed === '' || get().busy) {
       return;
     }
     appendUserPrompt(buffer, trimmed);
+    set({ ...NO_MENTIONS });
     // Optimistic: the host will confirm with `turn_start`, but the input must lock
     // immediately or a fast second Enter submits into a turn that already exists.
     set((state) => ({ ...published(buffer), busy: true, revision: state.revision + 1 }));
@@ -221,5 +260,6 @@ export function resetTarsStore(): void {
     transcript: buffer.items,
     revision: 0,
     ...NO_PENDING_CHANGES,
+    ...NO_MENTIONS,
   });
 }

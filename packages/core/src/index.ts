@@ -4,6 +4,8 @@ export type {
   DiagnosticsPort,
   DirectoryEntry,
   EditorSelection,
+  FileChangeKind as WatchedFileChangeKind,
+  FileWatcherPort,
   FileStat,
   FileSystemPort,
   GitFileChange,
@@ -18,6 +20,7 @@ export type {
   StoragePort,
   TerminalPort,
   Unsubscribe,
+  WatchedFileChange,
   WorkspaceFolder,
   WorkspacePort,
 } from './ports/index.js';
@@ -103,7 +106,7 @@ export type {
   SnapshotInput,
 } from './checkpoint/index.js';
 
-export { ALWAYS_IGNORED, FileIndex, GitignoreFile, IgnoreStack } from './context/index.js';
+export { ALWAYS_IGNORED, FileIndex, GitignoreFile, IgnoreStack, WorkspaceIndex } from './context/index.js';
 export { parseMentions, resolveMentions, stripMentions } from './context/index.js';
 export type {
   FileIndexDeps,
@@ -111,6 +114,7 @@ export type {
   Mention,
   ResolutionSources,
   ResolvedContext,
+  WorkspaceIndexDeps,
 } from './context/index.js';
 
 export { MEMORY_FILE_VERSION, MemoryStore, memoryPath } from './memory/index.js';
