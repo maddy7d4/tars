@@ -15,7 +15,7 @@ import * as vscode from 'vscode';
  * throws when invoked, and no unit test can see it.
  */
 
-const EXTENSION_ID = 'tars.tars';
+const EXTENSION_ID = 'maddy7d4.tars';
 
 /** Every command the manifest contributes. Kept literal on purpose: reading it
  * back out of the manifest would let both sides drift together. */
@@ -100,6 +100,37 @@ suite('TARS contributions', () => {
     assert.deepEqual(config.get('tars.toolPermissions'), {});
     assert.equal(config.get('tars.review.openEditedFiles'), true);
     assert.deepEqual(config.get('tars.mcpServers'), {});
+  });
+
+  test('the marketplace metadata is complete enough to publish', () => {
+    const extension = vscode.extensions.getExtension(EXTENSION_ID);
+    assert.ok(extension);
+
+    // Each of these blocks `vsce publish` if absent, and the failure surfaces at
+    // release time rather than here unless it is asserted.
+    const json = extension.packageJSON as {
+      publisher?: string;
+      version?: string;
+      icon?: string;
+      license?: string;
+      repository?: { url?: string };
+    };
+    assert.equal(json.publisher, 'maddy7d4');
+    assert.match(json.version ?? '', /^\d+\.\d+\.\d+$/);
+    assert.equal(json.icon, 'dist/media/icon.png');
+    assert.equal(json.license, 'MIT');
+    assert.match(json.repository?.url ?? '', /^https:\/\/github\.com\//);
+  });
+
+  test('the icon the manifest names is actually packaged', async () => {
+    const extension = vscode.extensions.getExtension(EXTENSION_ID);
+    assert.ok(extension);
+
+    // The manifest points into `dist/`, which only exists after a build — an
+    // icon referenced but not copied is a broken marketplace listing.
+    const icon = vscode.Uri.joinPath(extension.extensionUri, 'dist', 'media', 'icon.png');
+    const stat = await vscode.workspace.fs.stat(icon);
+    assert.ok(stat.size > 0);
   });
 
   test('the engine floor is the one compatibility requires', () => {

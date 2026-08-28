@@ -75,7 +75,7 @@ pnpm verify        # typecheck → lint → test → build
 | `pnpm lint` | ESLint, including the core/`vscode` boundary rule |
 | `pnpm test` | Vitest across all packages |
 | `pnpm build` | esbuild (extension/host) + Vite (webview) |
-| `pnpm package` | Produces `packages/extension/tars-0.0.0.vsix` |
+| `pnpm package` | Produces `packages/extension/tars-1.0.0.vsix` |
 
 **Run the extension:** open the repo in VS Code and press <kbd>F5</kbd> to launch an Extension Development Host.
 
@@ -83,7 +83,7 @@ pnpm verify        # typecheck → lint → test → build
 
 ```bash
 pnpm package
-code --install-extension packages/extension/tars-0.0.0.vsix
+code --install-extension packages/extension/tars-1.0.0.vsix
 # Cursor: cursor --install-extension …   VSCodium: codium --install-extension …
 ```
 
@@ -193,15 +193,4 @@ never silent.
 
 ## Licence
 
-The published extension declares **MIT**, and `packages/extension/LICENSE` holds
-the corresponding text with the copyright line `2026 TARS contributors`.
-
-Two things are worth deciding before publishing:
-
-- There is **no licence file at the repository root**, so the monorepo itself —
-  everything outside `packages/extension/` — carries no grant.
-- The copyright holder reads `TARS contributors`, which is a placeholder rather
-  than a decision. If this work belongs to a person or an organisation, that
-  line should say so.
-
-Neither was invented here; both are the owner's call.
+[MIT](LICENSE). Copyright (c) 2026 Madhavan Parthasarathy.

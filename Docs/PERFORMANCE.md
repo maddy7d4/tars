@@ -21,7 +21,7 @@ Checked by `pnpm budgets`, which runs in `verify` and CI after the build.
 |---|---|---|---|
 | `webview main.js` | 213 KB | 400 KB | The panel is React plus a transcript reducer. Approaching this means a dependency arrived that belonged in the host. |
 | `webview main.css` | 11 KB | 64 KB | Tailwind emits only what the components use; growth means unused utilities are being retained. |
-| `.vsix` | 1.27 MB, 10 files | — | Reported rather than budgeted, for the same reason as the bundle. The *file count* is the meaningful check, and `.vscodeignore` enforces it by excluding everything and adding back only `dist/`. |
+| `.vsix` | 1.27 MB, 11 files | — | Reported rather than budgeted, for the same reason as the bundle. The *file count* is the meaningful check, and `.vscodeignore` enforces it by excluding everything and adding back only `dist/`. |
 
 ## Latency
 

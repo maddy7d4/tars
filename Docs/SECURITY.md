@@ -137,8 +137,8 @@ session.
 - `onlyBuiltDependencies` is an allowlist. A dependency that runs code at install
   time is a reviewed decision, not a default.
 - CI installs with `--frozen-lockfile`.
-- The `.vsix` ships **10 files**: the manifest, readme, licence, one bundle, and
-  the webview assets. No `node_modules`, no tests, no source maps. `.vscodeignore`
+- The `.vsix` ships **11 files**: the manifest, readme, licence, one bundle, and
+  the webview and icon assets. No `node_modules`, no tests, no source maps. `.vscodeignore`
   excludes everything and adds back only `dist/`, so the shipped set cannot drift
   as the tree grows.
 

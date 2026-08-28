@@ -17,7 +17,8 @@
     "package": "pnpm --filter ./packages/extension package",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm budgets && pnpm test:integration",
     "test:integration": "pnpm --filter tars test",
-    "budgets": "node scripts/check-budgets.mjs"
+    "budgets": "node scripts/check-budgets.mjs",
+    "icon": "node scripts/make-icon.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9",
@@ -29,5 +30,10 @@
     "typescript": "^5.7",
     "typescript-eslint": "^8",
     "vitest": "^3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maddy7d4/tars.git"
   }
 }

@@ -2,8 +2,8 @@
   "name": "tars",
   "displayName": "TARS",
   "description": "AI engineering agent for VS Code, Cursor and VSCodium \u2014 powered by the Claude Agent SDK.",
-  "publisher": "tars",
-  "version": "0.0.0",
+  "publisher": "maddy7d4",
+  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -212,7 +212,7 @@
     "typecheck": "tsc -b",
     "clean": "rm -rf dist out *.tsbuildinfo *.vsix",
     "test": "node esbuild.test.mjs && node out/test/run-tests.cjs",
-    "package": "vsce package --no-dependencies --allow-missing-repository",
+    "package": "vsce package --no-dependencies",
     "build:tests": "node esbuild.test.mjs"
   },
   "dependencies": {
@@ -242,5 +242,14 @@
   "galleryBanner": {
     "color": "#1e1e1e",
     "theme": "dark"
-  }
+  },
+  "icon": "dist/media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maddy7d4/tars.git"
+  },
+  "bugs": {
+    "url": "https://github.com/maddy7d4/tars/issues"
+  },
+  "homepage": "https://github.com/maddy7d4/tars#readme"
 }
