@@ -212,7 +212,7 @@
     "typecheck": "tsc -b",
     "clean": "rm -rf dist out *.tsbuildinfo *.vsix",
     "test": "node esbuild.test.mjs && node out/test/run-tests.cjs",
-    "package": "vsce package --no-dependencies --allow-missing-repository --out tars-0.0.0.vsix",
+    "package": "vsce package --no-dependencies --allow-missing-repository",
     "build:tests": "node esbuild.test.mjs"
   },
   "dependencies": {

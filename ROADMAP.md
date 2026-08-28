@@ -1,6 +1,6 @@
 # TARS — Delivery Roadmap
 
-**Status:** Approved
+**Status:** Phases 0–6 delivered
 **Date:** 2026-07-30
 **Scope:** TARS v1.0, phases 0–6
 **Source of truth:** [Docs/TARS_SPEC.md](Docs/TARS_SPEC.md) §2
@@ -29,6 +29,21 @@ The full brief spans roughly twenty-five components. That is a programme of work
 | [5 — Integrations](#phase-5--integrations) | Connect TARS to the surrounding developer environment — terminal, Git, MCP, memory, history. | 1, 2 |
 | [6 — Hardening](#phase-6--hardening) | Make v1.0 marketplace-ready: tested, budgeted, security-reviewed, documented. | all |
 
+### Delivery record
+
+All seven phases are delivered. What each turned out to require, where it
+differed from the plan:
+
+| Phase | Commit | Note |
+|---|---|---|
+| 0 — Foundation | `7b3e953` | — |
+| 1 — Agent Core | `9aeb92a` | — |
+| 2 — Chat Shell | `0fede74` | Permission prompt's single "Allow" was sending a session-wide promotion the host silently downgraded; split into "Allow once" and "Always allow", and the promotion made real. |
+| 3 — Edit & Review | `fc70725`, `dc18f10` | **Plan revised.** Propose-then-apply is impossible: the SDK's own file tools write to disk, so there is nothing to hold. Review became post-hoc, backed by checkpoints taken before each write, with per-hunk Accept/Reject in the editor. See [ADR 0009](Docs/adr/0009-post-hoc-review.md). |
+| 4 — Context Engine | `c3a40b9` | — |
+| 5 — Integrations | `eeb1e1b` | **Scope corrected.** Terminal output is not readable at the `^1.90.0` baseline; the API that can read it landed later, and raising the floor would break the fork compatibility §8.4 protects. Git context (`@diff`, `@branch`) shipped in its place. |
+| 6 — Hardening | `c1128f0`, `2186ce6` | The integration suite found a release-blocking activation bug on its first run — `import.meta.url` was `undefined` in the CommonJS bundle, so the extension could not start at all while every unit test passed. |
+
 ### Architecture decision records
 
 The decisions this roadmap implements are recorded under [Docs/adr/](Docs/adr/):
@@ -43,6 +58,7 @@ The decisions this roadmap implements are recorded under [Docs/adr/](Docs/adr/):
 | [0006](Docs/adr/0006-append-only-session-event-log.md) | Append-only session event log as the persistence primitive | Phase 1 |
 | [0007](Docs/adr/0007-native-diff-editor-and-workspaceedit.md) | Native VS Code diff editor and `WorkspaceEdit` | Phase 3 |
 | [0008](Docs/adr/0008-no-embedding-index-in-v1.md) | No embedding index in v1 | Phase 4 |
+| [0009](Docs/adr/0009-post-hoc-review.md) | Post-hoc review backed by checkpoints, superseding propose-then-apply | Phase 3 |
 
 ---
 

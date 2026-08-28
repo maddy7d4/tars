@@ -18,7 +18,7 @@
     "build": "tsc -b",
     "typecheck": "tsc -b",
     "clean": "rm -rf dist *.tsbuildinfo",
-    "test": "echo \"@tars/host: covered by @vscode/test-electron from phase 6 (Docs/TARS_SPEC.md 8.1)\" && exit 0"
+    "test": "echo \"@tars/host: adapters run against a real editor in packages/extension (pnpm test:integration)\" && exit 0"
   },
   "dependencies": {
     "@tars/core": "workspace:*",
