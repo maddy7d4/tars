@@ -55,6 +55,14 @@ export class FakeClock implements ClockPort {
 export class MemoryFileSystem implements FileSystemPort {
   readonly files = new Map<string, string>();
   readonly directories = new Set<string>();
+  /**
+   * Modification times, for the cases that order by them.
+   *
+   * Kept as an explicit map rather than a counter incremented on write, because
+   * most tests seed `files` directly and would otherwise all share one mtime —
+   * which is exactly the ambiguity an ordering test needs to avoid.
+   */
+  readonly mtimes = new Map<string, number>();
 
   /** Set to make the next matching operation fail, for error-path tests. */
   failOn: { readonly operation: 'append' | 'write' | 'read'; readonly message: string } | null =
@@ -88,7 +96,11 @@ export class MemoryFileSystem implements FileSystemPort {
   stat(path: string): Promise<FileStat | null> {
     const content = this.files.get(path);
     if (content !== undefined) {
-      return Promise.resolve({ type: 'file', size: content.length, mtime: 0 });
+      return Promise.resolve({
+        type: 'file',
+        size: content.length,
+        mtime: this.mtimes.get(path) ?? 0,
+      });
     }
     if (this.directories.has(path)) {
       return Promise.resolve({ type: 'directory', size: 0, mtime: 0 });

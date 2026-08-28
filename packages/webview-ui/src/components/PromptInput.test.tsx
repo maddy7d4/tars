@@ -275,3 +275,33 @@ describe('PromptInput mentions', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 });
+
+describe('PromptInput mention caret tracking', () => {
+  it('re-queries when the caret moves out of the mention it is showing', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @ind');
+    respond('ind');
+    expect(screen.getByRole('listbox')).toBeTruthy();
+
+    vi.mocked(postToHost).mockClear();
+    // Left past the `@` leaves the mention entirely. Vertical arrows belong to
+    // the popup while it is open, but horizontal ones still move the caret.
+    await userEvent.keyboard('{ArrowLeft>5/}');
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('re-queries with the shorter prefix when the caret moves inside the mention', async () => {
+    useTarsStore.setState(CONNECTED);
+    render(<PromptInput />);
+    await userEvent.type(box(), 'open @index');
+    respond('index');
+
+    vi.mocked(postToHost).mockClear();
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}');
+
+    // Otherwise the list keeps offering completions for the mention behind you.
+    expect(vi.mocked(postToHost)).toHaveBeenCalledWith({ type: 'mention_query', query: 'ind' });
+  });
+});

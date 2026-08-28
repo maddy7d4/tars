@@ -32,7 +32,15 @@ export interface ConversationSummary {
   readonly title: string;
   /** Epoch millis of the first event, i.e. when the conversation began. */
   readonly startedAt: number;
-  /** Epoch millis of the last event read. */
+  /**
+   * Epoch millis of the log file's last write, i.e. when the conversation was
+   * last active.
+   *
+   * Taken from the filesystem rather than from an event, because only the head
+   * of the log is read: a conversation longer than the head limit would
+   * otherwise report its *start* as its last activity, and a week-old
+   * conversation resumed today would sort as though it had never been touched.
+   */
   readonly updatedAt: number;
   readonly eventCount: number;
 }
@@ -74,7 +82,12 @@ export class ConversationHistory {
         continue;
       }
       const sessionId = toSessionId(entry.name.slice(0, -LOG_SUFFIX.length));
-      const summary = await this.summarise(sessionId);
+      const stat = await this.deps.fileSystem.stat(`${directory}/${entry.name}`);
+      if (stat === null) {
+        // Deleted between listing the directory and reading it.
+        continue;
+      }
+      const summary = await this.summarise(sessionId, stat.mtime);
       if (summary !== null) {
         summaries.push(summary);
       }
@@ -106,11 +119,14 @@ export class ConversationHistory {
    * Derives a summary by reading the head of a log.
    *
    * Only the head: a long conversation's log can be large, and the title comes
-   * from its opening either way. `updatedAt` is therefore the timestamp of the
-   * last event *read*, not of the conversation — which is why the field is
-   * documented as such rather than named `endedAt`.
+   * from its opening either way. That is exactly why `updatedAt` comes from the
+   * caller as the file's mtime — an event timestamp here would describe where
+   * reading stopped, not when the conversation was last active.
    */
-  private async summarise(sessionId: SessionId): Promise<ConversationSummary | null> {
+  private async summarise(
+    sessionId: SessionId,
+    updatedAt: number,
+  ): Promise<ConversationSummary | null> {
     const log = new SessionEventLog(
       {
         fileSystem: this.deps.fileSystem,
@@ -122,7 +138,6 @@ export class ConversationHistory {
     );
 
     let startedAt: number | null = null;
-    let updatedAt = 0;
     let count = 0;
     let title = '';
 
@@ -130,7 +145,6 @@ export class ConversationHistory {
       for await (const record of log.replay()) {
         count += 1;
         startedAt ??= record.event.at;
-        updatedAt = record.event.at;
 
         // The first prose the agent produced makes a far better label than the
         // session id, and unlike the user's prompt it is always in the log —

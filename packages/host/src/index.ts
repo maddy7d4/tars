@@ -69,5 +69,4 @@ export type {
   ApplyOutcome,
   ChangeApplierDeps,
   InlineDiffControllerDeps,
-  InlineDiffState,
 } from './review/index.js';

@@ -15,6 +15,20 @@ import { MentionPopup } from './MentionPopup.js';
 
 const POPUP_ID = 'tars-mention-popup';
 
+/**
+ * Keys that move the caret rather than the popup's highlight.
+ *
+ * While the list is open the vertical arrows belong to it, but these still move
+ * through the text — and moving out of one mention and into another has to
+ * re-query, or the list keeps offering completions for the mention behind you.
+ */
+const HORIZONTAL_KEYS: ReadonlySet<string> = new Set([
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+]);
+
 export function PromptInput(): JSX.Element {
   const busy = useTarsStore((state) => state.busy);
   const connected = useTarsStore((state) => state.connected);
@@ -165,9 +179,11 @@ export function PromptInput(): JSX.Element {
           syncMention(event.target);
         }}
         onKeyUp={(event) => {
-          // Arrow keys and clicks move the caret without changing the text, so
-          // `onChange` alone would leave the popup showing the wrong mention.
-          if (!open) {
+          // Caret movement changes which mention is being typed without changing
+          // a character, so `onChange` alone would leave the popup showing the
+          // wrong one. Vertical arrows are excluded only while the popup is open,
+          // because there they move the highlight rather than the caret.
+          if (!open || HORIZONTAL_KEYS.has(event.key)) {
             syncMention(event.currentTarget);
           }
         }}

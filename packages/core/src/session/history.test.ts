@@ -44,11 +44,23 @@ function record(event: AgentEvent, seq: number): string {
   return `${JSON.stringify(line)}\n`;
 }
 
-/** Writes a log the way `SessionEventLog` would. */
-function writeLog(h: Harness, id: string, events: readonly AgentEvent[]): SessionId {
+/**
+ * Writes a log the way `SessionEventLog` would.
+ *
+ * `mtime` defaults to the last event's timestamp, which is what a real log would
+ * have; cases about ordering pass it explicitly.
+ */
+function writeLog(
+  h: Harness,
+  id: string,
+  events: readonly AgentEvent[],
+  mtime?: number,
+): SessionId {
   const sessionId = toSessionId(id);
   const body = events.map((event, index) => record(event, index)).join('');
-  h.fs.files.set(`/global/sessions/${id}.jsonl`, body);
+  const path = `/global/sessions/${id}.jsonl`;
+  h.fs.files.set(path, body);
+  h.fs.mtimes.set(path, mtime ?? (events[events.length - 1]?.at ?? 0));
   return sessionId;
 }
 
@@ -87,6 +99,30 @@ describe('ConversationHistory.list', () => {
     writeLog(h, 'newer', conversation('newer', T0 + 10_000, 'second'));
 
     expect((await h.history.list()).map((entry) => entry.title)).toEqual(['second', 'first']);
+  });
+
+  it('orders by last activity, not by when the conversation began', async () => {
+    // The case an event timestamp gets wrong. Only the head of a log is read, so
+    // a conversation longer than that limit would report its *start* as its last
+    // activity — and one begun a week ago and resumed today would sort as though
+    // it had never been touched.
+    const long = Array.from({ length: 300 }, (_, i) => conversation('long', T0 + i, 'old thread'))
+      .flat();
+    writeLog(h, 'long', long, T0 + 999_999);
+    writeLog(h, 'recent', conversation('recent', T0 + 500_000, 'newer thread'), T0 + 500_002);
+
+    expect((await h.history.list()).map((entry) => entry.title)).toEqual([
+      'old thread',
+      'newer thread',
+    ]);
+  });
+
+  it('takes the update time from the log file, not from an event', async () => {
+    writeLog(h, 's1', conversation('s1', T0, 'reply'), T0 + 60_000);
+
+    const [summary] = await h.history.list();
+    expect(summary?.startedAt).toBe(T0);
+    expect(summary?.updatedAt).toBe(T0 + 60_000);
   });
 
   it('takes only the first non-empty line of a multi-line reply', async () => {

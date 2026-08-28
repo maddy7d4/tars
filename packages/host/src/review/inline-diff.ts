@@ -27,13 +27,6 @@ import { acceptAll, acceptHunk, rejectAll, rejectHunk, viewHunks, type DiffHunk 
  * large.
  */
 
-/** Files under review, and what they looked like before the agent touched them. */
-export interface InlineDiffState {
-  readonly path: string;
-  readonly baseline: string;
-  readonly hunks: readonly DiffHunk[];
-}
-
 const ADDED = vscode.window.createTextEditorDecorationType({
   backgroundColor: new vscode.ThemeColor('diffEditor.insertedLineBackground'),
   isWholeLine: true,
@@ -77,15 +70,6 @@ export class InlineDiffController implements vscode.Disposable {
         }
       }),
     );
-  }
-
-  /** Whether anything is awaiting a decision. */
-  get isEmpty(): boolean {
-    return this.baselines.size === 0;
-  }
-
-  get paths(): readonly string[] {
-    return [...this.baselines.keys()];
   }
 
   /**
@@ -293,8 +277,11 @@ function removedMarkers(
       anchor = op.afterLine;
       flush();
     }
-    // A run at the end of the hunk anchors to the last line of the file.
-    anchor = Math.max(0, document.lineCount - 1);
+    // A run that reaches the end of the hunk has no following line to sit on, so
+    // it anchors to the hunk's own last line. Anchoring to the end of the *file*
+    // would be right only when the deletion happens to be the last thing in it —
+    // true with the default context, and silently false without it.
+    anchor = Math.max(0, hunk.afterStart + hunk.afterCount - 1);
     flush();
   }
   return markers;
