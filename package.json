@@ -15,8 +15,9 @@
     "test": "pnpm -r --filter '!tars' test",
     "clean": "pnpm -r clean",
     "package": "pnpm --filter ./packages/extension package",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:integration",
-    "test:integration": "pnpm --filter tars test"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm budgets && pnpm test:integration",
+    "test:integration": "pnpm --filter tars test",
+    "budgets": "node scripts/check-budgets.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9",

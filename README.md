@@ -97,7 +97,14 @@ Coverage concentrates in `core` precisely because the dependency rule made it ch
 | `webview-ui` | Vitest + React Testing Library |
 | `host` | `@vscode/test-electron` |
 
-`pnpm test` runs green tests — but note that **Vitest does not typecheck**. `pnpm verify` chains typecheck, lint, test and build for exactly that reason; a green test run alone is not a green build.
+`pnpm test` runs the fast suites. **Vitest does not typecheck**, so a green test
+run alone is not a green build: `pnpm verify` chains typecheck, lint, test,
+build, size budgets and the integration suite for exactly that reason.
+
+The integration tests load the real bundle in a real editor and run after the
+build (`pnpm test:integration`, `xvfb-run` on Linux). They exist for the failures
+a fake cannot reach — the first run found that the extension could not activate
+at all, while all 545 unit tests passed.
 
 ---
 
@@ -107,7 +114,78 @@ Tool invocations pass through a permission gate before they run ([spec §4.2](Do
 
 A session-wide `always_allow` does **not** unlock them; only an explicit per-tool override can, and that override is a deliberate instruction naming the specific tool. If no approval UI is attached, the gate **fails closed** and denies. These invariants are asserted directly in the test suite rather than left to inspection.
 
-File edits apply as a single `vscode.WorkspaceEdit`, so they land in the editor's own undo stack — <kbd>Ctrl</kbd>+<kbd>Z</kbd> reverses an AI edit exactly as it reverses a human one.
+The prompt offers **Allow once** and **Always allow** as separate buttons, because
+the two differ in blast radius. A promotion lasts the session and never beyond it.
+
+### Review is after the fact, and that is deliberate
+
+TARS uses the Agent SDK's own `Write` and `Edit` tools, and those write to the
+workspace themselves. `canUseTool` can hold a tool before it runs or refuse it,
+but it cannot take the write and defer it — so there is no honest way to present
+edits as "pending approval". They are already on disk.
+
+Safety therefore rests on two things that are real rather than one that is not:
+the permission gate runs **before** the write, and a checkpoint is taken **before**
+the write, from the event the SDK emits ahead of execution. The checkpoint is
+re-persisted after each file, so a crash mid-turn still leaves a way back.
+
+You then review in the editor, where the change is: changed regions are coloured
+with **Accept** and **Reject** on each hunk, and the chat panel offers **Keep** or
+**Revert** for the whole turn. Rejections and reverts apply as a single
+`vscode.WorkspaceEdit`, so they land in the editor's own undo stack —
+<kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes a mistaken rejection exactly as it undoes a
+human edit.
+
+The full reasoning, including the alternatives rejected, is
+[ADR 0009](Docs/adr/0009-post-hoc-review.md).
+
+## Context
+
+Type `@` in the prompt for completions drawn from three sources: the workspace
+file index, workspace symbols from **your own language servers** (TARS ships no
+parsers), and editor state.
+
+| Mention | Attaches |
+|---|---|
+| `@path/to/file.ts` | A file. A bare basename works when unambiguous; an ambiguous one resolves to nothing rather than guessing. |
+| `@selection` | The code you have selected. |
+| `@problems` | Diagnostics from your language servers. |
+| `@diff` | The working tree, from the built-in git extension. |
+| `@branch` | The current branch. |
+
+A mention that resolves is carried structurally and removed from the prose; one
+that does not is left in place and reported, so a mention that attached nothing is
+never silent.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `TARS: Open Chat` | <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> |
+| `TARS: New Session` | Fresh conversation |
+| `TARS: Stop` | Interrupt the running turn |
+| `TARS: Resume a Conversation` | Reopen a past conversation from its log |
+| `TARS: Restore a Checkpoint` | Return the workspace to an earlier point |
+| `TARS: Show Workspace Memory` | What TARS has learned about this project |
+| `TARS: Clear Workspace Memory` | Forget it |
+
+## Settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `tars.permissionPolicy` | `ask` | Session-wide default for gated tools |
+| `tars.toolPermissions` | `{}` | Per-tool overrides, e.g. `{"Bash": "deny"}` |
+| `tars.review.openEditedFiles` | `true` | Bring an edited file forward so its changes are visible |
+| `tars.mcpServers` | `{}` | MCP servers, keyed by name |
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [`Docs/TARS_SPEC.md`](Docs/TARS_SPEC.md) | Architecture, in full |
+| [`Docs/SECURITY.md`](Docs/SECURITY.md) | Threat model, permission gating, what is and is not mitigated |
+| [`Docs/PERFORMANCE.md`](Docs/PERFORMANCE.md) | Measured budgets and the bounds on every store |
+| [`Docs/adr/`](Docs/adr/) | Why each decision was made, including the ones reversed |
 
 ## Compatibility
 
@@ -115,6 +193,15 @@ File edits apply as a single `vscode.WorkspaceEdit`, so they land in the editor'
 
 ## Licence
 
-No licence has been selected yet. Until one is added at the repository root, the
-default position under copyright law is that no permissions are granted — pick a
-licence before publishing or accepting outside contributions.
+The published extension declares **MIT**, and `packages/extension/LICENSE` holds
+the corresponding text with the copyright line `2026 TARS contributors`.
+
+Two things are worth deciding before publishing:
+
+- There is **no licence file at the repository root**, so the monorepo itself —
+  everything outside `packages/extension/` — carries no grant.
+- The copyright holder reads `TARS contributors`, which is a placeholder rather
+  than a decision. If this work belongs to a person or an organisation, that
+  line should say so.
+
+Neither was invented here; both are the owner's call.
