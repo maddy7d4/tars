@@ -28,6 +28,9 @@ export type {
 export type {
   AgentProvider,
   AgentSession,
+  McpRemoteServerSpec,
+  McpServerSpec,
+  McpStdioServerSpec,
   PermissionDecision,
   ProviderCapabilities,
   SessionOptions,
@@ -49,12 +52,15 @@ export {
 export type { ClaudeCodeProviderDeps } from './provider/claude-code/index.js';
 
 export {
+  ConversationHistory,
   SESSION_LOG_RECORD_VERSION,
   SessionEventLog,
   SessionManager,
   sessionLogPath,
 } from './session/index.js';
 export type {
+  ConversationHistoryDeps,
+  ConversationSummary,
   ManagedSession,
   RecoveryOutcome,
   SessionEventLogDeps,

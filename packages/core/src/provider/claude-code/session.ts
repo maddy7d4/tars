@@ -377,6 +377,8 @@ function renderContextItem(item: ContextItem): string {
       return `- diagnostic [${item.severity}]: ${item.path}:${String(item.line)} ${item.message}`;
     case 'terminal':
       return `- terminal output:\n\`\`\`\n${item.text}\n\`\`\``;
+    case 'git':
+      return `- git ${item.label}:\n\`\`\`\n${item.text}\n\`\`\``;
     default:
       return assertNever(item);
   }

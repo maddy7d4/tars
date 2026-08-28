@@ -5,3 +5,5 @@ export { parseMentions, resolveMentions, stripMentions } from './mention.js';
 export type { Mention, ResolutionSources, ResolvedContext } from './mention.js';
 export { WorkspaceIndex } from './workspace-index.js';
 export type { WorkspaceIndexDeps } from './workspace-index.js';
+export { GIT_ALIASES, resolveGitMention } from './git-context.js';
+export type { GitContextDeps } from './git-context.js';

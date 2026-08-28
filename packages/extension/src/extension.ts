@@ -25,6 +25,9 @@ const OPEN_CHAT_COMMAND = 'tars.openChat';
 const NEW_SESSION_COMMAND = 'tars.newSession';
 const INTERRUPT_COMMAND = 'tars.interrupt';
 const RESTORE_CHECKPOINT_COMMAND = 'tars.restoreCheckpoint';
+const RESUME_SESSION_COMMAND = 'tars.resumeSession';
+const SHOW_MEMORY_COMMAND = 'tars.showMemory';
+const CLEAR_MEMORY_COMMAND = 'tars.clearMemory';
 
 /**
  * Releases the agent sessions. Module-level because `deactivate` has no handle on
@@ -92,6 +95,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand(OPEN_FULL_DIFF_COMMAND, (uri: vscode.Uri) => {
       void provider.openFullDiff(uri);
+    }),
+    vscode.commands.registerCommand(RESUME_SESSION_COMMAND, () => {
+      void provider.resumeConversation();
+    }),
+    vscode.commands.registerCommand(SHOW_MEMORY_COMMAND, () => {
+      void provider.showMemory();
+    }),
+    vscode.commands.registerCommand(CLEAR_MEMORY_COMMAND, () => {
+      void provider.clearMemory();
     }),
   );
 

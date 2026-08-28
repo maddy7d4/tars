@@ -61,6 +61,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       workspace: ports.workspace,
       diagnostics: ports.diagnostics,
       fileWatcher: ports.fileWatcher,
+      git: ports.git,
       logger: ports.logger,
     });
     this.mentions = new MentionProvider({ ports, index: this.index });
@@ -88,6 +89,70 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Opens the full side-by-side diff for a file under review. */
   openFullDiff(uri: vscode.Uri): Promise<void> {
     return this.review.review(uri.fsPath);
+  }
+
+  /** Offers past conversations and reopens the chosen one. */
+  async resumeConversation(): Promise<void> {
+    const conversations = await this.controller.listConversations();
+    if (conversations.length === 0) {
+      void vscode.window.showInformationMessage('TARS has no past conversations yet.');
+      return;
+    }
+
+    const picked = await vscode.window.showQuickPick(
+      conversations.map((conversation) => ({
+        label: conversation.title,
+        description: new Date(conversation.updatedAt).toLocaleString(),
+        detail: `${String(conversation.eventCount)} events`,
+        sessionId: conversation.sessionId,
+      })),
+      { title: 'Resume a TARS conversation', placeHolder: 'Most recent first' },
+    );
+    if (picked === undefined) {
+      return;
+    }
+    // The review belongs to the conversation being left, not the one arriving.
+    this.review.reset();
+    await this.controller.resume(picked.sessionId);
+    await this.reveal();
+  }
+
+  /** Shows what TARS has learned about this workspace. */
+  async showMemory(): Promise<void> {
+    const entries = await this.controller.workspaceMemory.recall();
+    if (entries.length === 0) {
+      void vscode.window.showInformationMessage(
+        'TARS has not recorded anything about this workspace yet.',
+      );
+      return;
+    }
+    // A read-only document rather than a webview: it is text, the editor already
+    // renders markdown, and the user can search it with tools they know.
+    const document = await vscode.workspace.openTextDocument({
+      language: 'markdown',
+      content: await this.controller.workspaceMemory.toPromptSection(),
+    });
+    await vscode.window.showTextDocument(document, { preview: true });
+  }
+
+  /** Forgets everything TARS learned about this workspace, after confirming. */
+  async clearMemory(): Promise<void> {
+    const memory = this.controller.workspaceMemory;
+    const entries = await memory.recall();
+    if (entries.length === 0) {
+      void vscode.window.showInformationMessage('TARS has nothing recorded to clear.');
+      return;
+    }
+    const answer = await vscode.window.showWarningMessage(
+      `Forget everything TARS has learned about this workspace? (${String(entries.length)} entries)`,
+      { modal: true },
+      'Forget',
+    );
+    if (answer !== 'Forget') {
+      return;
+    }
+    await memory.clear();
+    void vscode.window.showInformationMessage('TARS workspace memory cleared.');
   }
 
   /** Starts a fresh conversation and brings the panel forward to show it. */

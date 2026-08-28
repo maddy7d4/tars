@@ -1,12 +1,18 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { Options } from '@anthropic-ai/claude-agent-sdk';
+import type { McpServerConfig, Options } from '@anthropic-ai/claude-agent-sdk';
 import type { ProviderId, SessionId } from '@tars/shared';
 import { toProviderId, toSessionId } from '@tars/shared';
 import { randomUUID } from 'node:crypto';
 import type { ClockPort } from '../../ports/clock-port.js';
 import type { LoggerPort } from '../../ports/logger-port.js';
 import type { SecretsPort } from '../../ports/secrets-port.js';
-import type { AgentProvider, AgentSession, ProviderCapabilities, SessionOptions } from '../types.js';
+import type {
+  AgentProvider,
+  AgentSession,
+  McpServerSpec,
+  ProviderCapabilities,
+  SessionOptions,
+} from '../types.js';
 import type { QueryFn } from './session.js';
 import { ClaudeCodeSession } from './session.js';
 
@@ -153,6 +159,11 @@ export class ClaudeCodeProvider implements AgentProvider {
           }
         : {};
 
+    // Mapped from core's own spec rather than passed through, so a user-facing
+    // setting is never implicitly bound to an SDK type that can change under it.
+    const mcp: Options =
+      opts.mcpServers === undefined ? {} : { mcpServers: toSdkMcpServers(opts.mcpServers) };
+
     // The whole environment is forwarded, not just the key: the subprocess needs
     // PATH and the rest to start at all.
     const env: Options =
@@ -160,6 +171,36 @@ export class ClaudeCodeProvider implements AgentProvider {
         ? { env: { ...this.processEnv, ANTHROPIC_API_KEY: apiKeyOverride } }
         : {};
 
-    return { ...base, ...identity, ...model, ...systemPrompt, ...env };
+    return { ...base, ...identity, ...model, ...systemPrompt, ...mcp, ...env };
   }
+}
+
+/**
+ * Maps core's MCP spec onto the SDK's.
+ *
+ * The discriminants differ deliberately: core says `transport`, the SDK says
+ * `type`. Keeping them distinct is the point of ADR 0004 — a user-facing setting
+ * that spelled the SDK's field names would make an SDK rename a breaking change
+ * to everyone's `settings.json`.
+ */
+function toSdkMcpServers(
+  servers: Readonly<Record<string, McpServerSpec>>,
+): Record<string, McpServerConfig> {
+  const mapped: Record<string, McpServerConfig> = {};
+  for (const [name, spec] of Object.entries(servers)) {
+    mapped[name] =
+      spec.transport === 'stdio'
+        ? {
+            type: 'stdio',
+            command: spec.command,
+            ...(spec.args === undefined ? {} : { args: [...spec.args] }),
+            ...(spec.env === undefined ? {} : { env: { ...spec.env } }),
+          }
+        : {
+            type: spec.transport,
+            url: spec.url,
+            ...(spec.headers === undefined ? {} : { headers: { ...spec.headers } }),
+          };
+  }
+  return mapped;
 }

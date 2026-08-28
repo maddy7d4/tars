@@ -38,6 +38,20 @@ export interface TerminalContextItem {
 }
 
 /**
+ * Repository state attached as context.
+ *
+ * Carries the text rather than a path because there is no file to point at: a
+ * working-tree diff exists only as the output of a command. The label says which
+ * command produced it, so the model can tell a staged diff from an unstaged one.
+ */
+export interface GitContextItem {
+  readonly kind: 'git';
+  /** e.g. `'working tree diff'`, `'branch'`. */
+  readonly label: string;
+  readonly text: string;
+}
+
+/**
  * Everything the user can attach to a turn. Typed rather than flattened into
  * prompt text so the host can re-resolve paths and the UI can render chips.
  */
@@ -46,7 +60,8 @@ export type ContextItem =
   | SelectionContextItem
   | SymbolContextItem
   | DiagnosticContextItem
-  | TerminalContextItem;
+  | TerminalContextItem
+  | GitContextItem;
 
 /** One user message plus its curated context. */
 export interface UserTurn {

@@ -184,6 +184,24 @@ Ownership across phases: **phase 1 owns the log primitive** — writing, replayi
 
 ---
 
+### 4.4 Conversation history
+
+Listing past conversations is listing the session-log directory; resuming one is
+replaying its log. There is deliberately **no separate index**: a second store
+would be a second source of truth, and the one that disagreed after a crash
+would be the index, silently.
+
+Titles are derived from the head of each log — the first prose the agent
+produced — rather than stored, because a stored title would have to be written
+before the conversation happened. The agent's first reply is used rather than the
+user's prompt because user messages are echoed locally and never recorded as
+events (§5.3).
+
+A log that cannot be read is skipped rather than failing the listing, and an
+empty one is omitted: a session opened and abandoned is not a conversation.
+
+---
+
 ## 5. Webview State & IPC
 
 ### 5.1 Typed message contract
@@ -347,7 +365,22 @@ The Agent SDK already ships `Glob`, `Grep`, `Read`, and `WebFetch`, and Claude u
 - **File index** — incremental walk respecting `.gitignore`, backed by a file watcher. Powers `@`-mention completion and fast path resolution.
 - **Text search** — `ripgrep`, which ships with VS Code. No bundled binary.
 - **Symbol navigation** — `vscode.executeWorkspaceSymbolProvider`. Reuses whatever language servers the user already has installed rather than shipping parsers for N languages. TARS gets accurate symbols for every language the user's editor supports, for free.
-- **`@`-mentions** — resolve files, symbols, diagnostics, selections, and terminal output into typed context items attached to a turn.
+- **Repository state** — `@diff` and `@branch` through the read-only `GitPort`.
+  "What have I changed so far" is the most common thing a user wants the agent to
+  look at, and the alternative — asking it to run `git diff` through Bash — costs
+  a permission prompt, a subprocess, and a round trip to report something the
+  editor already knows.
+- **`@`-mentions** — resolve files, symbols, diagnostics, selections and
+  repository state into typed context items attached to a turn.
+
+**Terminal output is not among them.** `TerminalPort` is write-only because
+VS Code's stable API at the pinned `^1.90.0` baseline cannot read a terminal's
+buffer. The shell-integration API that can (`onDidStartTerminalShellExecution`)
+landed later, and raising the engine floor to reach it would break the Cursor and
+VSCodium compatibility §8.4 exists to protect. Output the agent needs is captured
+by running the command through the SDK's `Bash` tool, which owns its own process
+and streams real output. `TerminalContextItem` remains in the protocol for when
+the baseline moves.
 
 ### 7.3 Index freshness
 
@@ -456,6 +489,7 @@ Each decision below is recorded as a separate file under `Docs/adr/`, written as
 | 0006 | Append-only session event log as the persistence primitive |
 | 0007 | Native VS Code diff editor and `WorkspaceEdit` for review and apply |
 | 0008 | No embedding index in v1 |
+| 0009 | Post-hoc review backed by checkpoints, superseding propose-then-apply |
 
 ---
 

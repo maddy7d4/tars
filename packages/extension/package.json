@@ -76,6 +76,18 @@
       {
         "command": "tars.openFullDiff",
         "title": "TARS: Open Full Diff"
+      },
+      {
+        "command": "tars.showMemory",
+        "title": "TARS: Show Workspace Memory"
+      },
+      {
+        "command": "tars.clearMemory",
+        "title": "TARS: Clear Workspace Memory"
+      },
+      {
+        "command": "tars.resumeSession",
+        "title": "TARS: Resume a Conversation"
       }
     ],
     "keybindings": [
@@ -120,6 +132,55 @@
           "type": "boolean",
           "default": true,
           "description": "Bring a file forward when TARS edits it, so its changes are visible for review. Turn off if you prefer to open edited files yourself from the chat panel."
+        },
+        "tars.mcpServers": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "MCP servers the agent may use, keyed by name. Every tool an MCP server exposes is permission-gated as a class: configuring a server says it may run, not that it may run unattended.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "transport": {
+                "type": "string",
+                "enum": [
+                  "stdio",
+                  "http",
+                  "sse"
+                ],
+                "default": "stdio",
+                "description": "How to reach the server. Defaults to stdio, which is what locally-installed servers use."
+              },
+              "command": {
+                "type": "string",
+                "description": "Executable to launch (stdio only)."
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Arguments for the command (stdio only)."
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Extra environment for the command (stdio only)."
+              },
+              "url": {
+                "type": "string",
+                "description": "Server URL (http and sse only)."
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Extra request headers (http and sse only)."
+              }
+            }
+          }
         }
       }
     },

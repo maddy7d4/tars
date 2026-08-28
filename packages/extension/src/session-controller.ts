@@ -1,21 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  ConversationSummary,
   HostPorts,
   LoggerPort,
   ManagedSession,
   PermissionDecision,
   Unsubscribe,
 } from '@tars/core';
-import { ClaudeCodeProvider, SessionManager } from '@tars/core';
+import { ClaudeCodeProvider, ConversationHistory, MemoryStore, SessionManager } from '@tars/core';
 import type {
   AgentEvent,
   ContextItem,
   HostToWebview,
   PermissionPolicy,
   PermissionRequestEvent,
+  SessionId,
 } from '@tars/shared';
 import { toTurnId } from '@tars/shared';
-import { readPermissionPolicy, readToolPolicies } from './config.js';
+import { readMcpServers, readPermissionPolicy, readToolPolicies } from './config.js';
 
 /** Collaborators the controller needs. Supplied by `ChatViewProvider`. */
 export interface SessionControllerDeps {
@@ -58,6 +60,18 @@ const TORN_DOWN_BEFORE_DECISION =
 export class SessionController {
   private readonly manager: SessionManager;
   private readonly log: LoggerPort;
+  /**
+   * What TARS has learned about this workspace, carried into every new session.
+   *
+   * Read at session open rather than per turn: the SDK's system prompt is fixed
+   * for the life of a session, so a memory recorded mid-conversation reaches the
+   * model on the next one. That is the honest bound, and pretending otherwise
+   * would mean re-opening the subprocess on every `remember`.
+   */
+  private readonly memory: MemoryStore;
+  private readonly history: ConversationHistory;
+  /** Set only for the next `openSession`, so resuming is a one-shot instruction. */
+  private resumeId: SessionId | null = null;
 
   /** Resolvers for `canUseTool` promises the SDK is currently holding open. */
   private readonly pendingDecisions = new Map<string, (decision: PermissionDecision) => void>();
@@ -89,6 +103,46 @@ export class SessionController {
       clock: ports.clock,
       logger: ports.logger,
     });
+    this.memory = new MemoryStore({
+      fileSystem: ports.fileSystem,
+      storage: ports.storage,
+      clock: ports.clock,
+      logger: ports.logger,
+    });
+    this.history = new ConversationHistory({
+      fileSystem: ports.fileSystem,
+      storage: ports.storage,
+      clock: ports.clock,
+      logger: ports.logger,
+    });
+  }
+
+  /** Past conversations, for the resume picker. */
+  listConversations(): Promise<readonly ConversationSummary[]> {
+    return this.history.list();
+  }
+
+  /**
+   * Closes the current session and reopens the named one.
+   *
+   * The id is stashed rather than passed down, because opening is latched behind
+   * `ensureSession` and threading a parameter through it would let a concurrent
+   * prompt open the wrong conversation.
+   */
+  async resume(sessionId: SessionId): Promise<void> {
+    try {
+      await this.closeSession();
+      this.resumeId = sessionId;
+      await this.ensureSession();
+      await this.restore();
+    } catch (error: unknown) {
+      this.fail('could not resume the conversation', error);
+    }
+  }
+
+  /** The workspace memory, for the commands that inspect and edit it. */
+  get workspaceMemory(): MemoryStore {
+    return this.memory;
   }
 
   /**
@@ -216,11 +270,28 @@ export class SessionController {
   }
 
   private async openSession(): Promise<ManagedSession> {
+    // Appended rather than replacing the provider's own prompt: TARS adds what it
+    // knows about this workspace, and overriding would discard everything Claude
+    // Code's harness already establishes about how to use its tools.
+    const memory = await this.memory.toPromptSection();
+    // Read at open, like the memory above: MCP servers are launched with the
+    // session, so a setting changed mid-conversation applies to the next one.
+    const configured = readMcpServers(this.deps.ports);
+    const mcpServers = Object.keys(configured).length === 0 ? null : configured;
+
+    // Consumed here so a later `newSession` opens a fresh conversation rather
+    // than silently resuming the same one again.
+    const resumeSessionId = this.resumeId;
+    this.resumeId = null;
+
     const session = await this.manager.create({
       cwd: this.requireWorkspacePath(),
+      ...(resumeSessionId === null ? {} : { resumeSessionId }),
       permissionPolicy: readPermissionPolicy(this.deps.ports),
       toolPolicies: readToolPolicies(this.deps.ports),
       onPermissionRequest: (requestId) => this.awaitDecision(requestId),
+      ...(memory === '' ? {} : { appendSystemPrompt: memory }),
+      ...(mcpServers === null ? {} : { mcpServers }),
     });
 
     this.session = session;

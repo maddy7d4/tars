@@ -33,8 +33,40 @@ export interface SessionOptions {
   readonly model?: string;
   /** Appended to the provider's own system prompt rather than replacing it. */
   readonly appendSystemPrompt?: string;
+  /**
+   * MCP servers to make available to the agent.
+   *
+   * Declared in core's own shape rather than the SDK's, so a user-facing setting
+   * is not implicitly bound to a third-party type that can change in a patch
+   * release (ADR 0004). The adapter maps it.
+   */
+  readonly mcpServers?: Readonly<Record<string, McpServerSpec>>;
   /** Resolves a held `permission_request`; absent means every gated tool is denied. */
   readonly onPermissionRequest?: (requestId: string) => Promise<PermissionDecision>;
+}
+
+/**
+ * An MCP server the agent may use.
+ *
+ * Every tool a server exposes is gated as a class by the permission broker: MCP
+ * servers are third-party code reaching outward, and a user who configures one
+ * has said it may run, not that it may run unattended.
+ */
+export type McpServerSpec = McpStdioServerSpec | McpRemoteServerSpec;
+
+/** A server TARS launches as a subprocess. */
+export interface McpStdioServerSpec {
+  readonly transport: 'stdio';
+  readonly command: string;
+  readonly args?: readonly string[];
+  readonly env?: Readonly<Record<string, string>>;
+}
+
+/** A server reached over the network. */
+export interface McpRemoteServerSpec {
+  readonly transport: 'http' | 'sse';
+  readonly url: string;
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /** A user's answer to a `permission_request`, with a reason the model can read on denial. */

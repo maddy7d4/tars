@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   Diagnostic,
   DiagnosticsPort,
+  GitPort,
+  GitRepository,
   EditorSelection,
   OpenDocument,
   Unsubscribe,
@@ -59,12 +61,29 @@ class FakeDiagnostics implements DiagnosticsPort {
   }
 }
 
+class FakeGit implements GitPort {
+  repos: GitRepository[] = [];
+
+  repositories(): Promise<readonly GitRepository[]> {
+    return Promise.resolve(this.repos);
+  }
+
+  repositoryFor(): Promise<GitRepository | null> {
+    return Promise.resolve(this.repos[0] ?? null);
+  }
+
+  showFileAtRef(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+}
+
 interface Harness {
   readonly index: WorkspaceIndex;
   readonly fs: MemoryFileSystem;
   readonly watcher: MemoryFileWatcher;
   readonly workspace: FakeWorkspace;
   readonly diagnostics: FakeDiagnostics;
+  readonly git: FakeGit;
   readonly logger: BufferLogger;
 }
 
@@ -76,14 +95,23 @@ function harness(files: Readonly<Record<string, string>> = {}): Harness {
   const watcher = new MemoryFileWatcher();
   const workspace = new FakeWorkspace();
   const diagnostics = new FakeDiagnostics();
+  const git = new FakeGit();
   const logger = new BufferLogger();
 
   return {
-    index: new WorkspaceIndex({ fileSystem: fs, workspace, diagnostics, fileWatcher: watcher, logger }),
+    index: new WorkspaceIndex({
+      fileSystem: fs,
+      workspace,
+      diagnostics,
+      fileWatcher: watcher,
+      git,
+      logger,
+    }),
     fs,
     watcher,
     workspace,
     diagnostics,
+    git,
     logger,
   };
 }
@@ -365,5 +393,90 @@ describe('WorkspaceIndex.search', () => {
 
     expect(await many.index.search('file', 5)).toHaveLength(5);
     many.index.dispose();
+  });
+});
+
+describe('WorkspaceIndex git mentions', () => {
+  it('attaches the working tree when there are changes', async () => {
+    h.git.repos = [
+      {
+        rootPath: ROOT,
+        currentBranch: 'main',
+        changes: [
+          { path: 'src/index.ts', status: 'modified' },
+          { path: 'new.ts', status: 'untracked' },
+        ],
+      },
+    ];
+
+    const result = await h.index.resolve('review @diff');
+
+    expect(result.context).toEqual([
+      {
+        kind: 'git',
+        label: 'working tree (2 file(s) on main)',
+        text: 'modified\tsrc/index.ts\nuntracked\tnew.ts',
+      },
+    ]);
+    expect(result.text).toBe('review');
+    expect(result.unresolved).toEqual([]);
+  });
+
+  it('attaches the branch', async () => {
+    h.git.repos = [{ rootPath: ROOT, currentBranch: 'feature/x', changes: [] }];
+
+    const result = await h.index.resolve('what is @branch');
+    expect(result.context).toEqual([{ kind: 'git', label: 'branch', text: 'feature/x' }]);
+  });
+
+  it('reports a clean tree as unresolved rather than attaching nothing', async () => {
+    h.git.repos = [{ rootPath: ROOT, currentBranch: 'main', changes: [] }];
+
+    const result = await h.index.resolve('review @diff');
+
+    // An empty attachment tells the model nothing and tells the user nothing;
+    // an unresolved mention at least says why there is no diff.
+    expect(result.context).toEqual([]);
+    expect(result.unresolved).toEqual(['diff']);
+    expect(result.text).toBe('review @diff');
+  });
+
+  it('reports a detached HEAD as unresolved for @branch', async () => {
+    h.git.repos = [{ rootPath: ROOT, currentBranch: null, changes: [] }];
+    expect((await h.index.resolve('@branch')).unresolved).toEqual(['branch']);
+  });
+
+  it('resolves nothing when there is no repository', async () => {
+    expect((await h.index.resolve('@diff')).unresolved).toEqual(['diff']);
+  });
+
+  it('survives the git extension being absent or still activating', async () => {
+    h.git.repositories = () => Promise.reject(new Error('git extension not activated'));
+
+    // Not worth failing a turn over: the mention simply does not resolve.
+    const result = await h.index.resolve('@diff');
+    expect(result.unresolved).toEqual(['diff']);
+  });
+
+  it('does not let a git alias fall through to a file of the same name', async () => {
+    const named = harness({ 'diff': 'x\n' });
+    named.git.repos = [
+      { rootPath: ROOT, currentBranch: 'main', changes: [{ path: 'a.ts', status: 'modified' }] },
+    ];
+
+    const result = await named.index.resolve('@diff');
+    expect(result.context.map((item) => item.kind)).toEqual(['git']);
+    named.index.dispose();
+  });
+
+  it('mixes git and file context in one prompt', async () => {
+    h.git.repos = [
+      { rootPath: ROOT, currentBranch: 'main', changes: [{ path: 'a.ts', status: 'modified' }] },
+    ];
+
+    const result = await h.index.resolve('compare @diff with @src/index.ts');
+
+    expect(result.context.map((item) => item.kind)).toEqual(['git', 'file']);
+    expect(result.text).toBe('compare with');
   });
 });

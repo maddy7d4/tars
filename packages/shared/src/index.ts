@@ -30,6 +30,7 @@ export type {
 export type {
   ContextItem,
   DiagnosticContextItem,
+  GitContextItem,
   FileContextItem,
   SelectionContextItem,
   SymbolContextItem,

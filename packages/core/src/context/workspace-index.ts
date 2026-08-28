@@ -1,15 +1,23 @@
 import type { ContextItem } from '@tars/shared';
 import type {
   DiagnosticsPort,
-  FileWatcherPort,
   FileSystemPort,
+  FileWatcherPort,
+  GitPort,
   LoggerPort,
   Unsubscribe,
   WatchedFileChange,
   WorkspacePort,
 } from '../ports/index.js';
 import { FileIndex, type IndexedFile } from './file-index.js';
-import { parseMentions, resolveMentions, stripMentions, type ResolvedContext } from './mention.js';
+import { GIT_ALIASES, resolveGitMention } from './git-context.js';
+import {
+  parseMentions,
+  resolveMentions,
+  stripMentions,
+  type Mention,
+  type ResolvedContext,
+} from './mention.js';
 
 /**
  * The live context engine (Docs/TARS_SPEC.md §7.2).
@@ -29,6 +37,7 @@ export interface WorkspaceIndexDeps {
   readonly workspace: WorkspacePort;
   readonly diagnostics: DiagnosticsPort;
   readonly fileWatcher: FileWatcherPort;
+  readonly git: GitPort;
   readonly logger: LoggerPort;
   readonly maxFiles?: number;
   readonly maxDepth?: number;
@@ -103,7 +112,33 @@ export class WorkspaceIndex {
       return { text, context: [], unresolved: [] };
     }
 
-    const resolved: ResolvedContext = resolveMentions(mentions, {
+    // Git aliases are resolved first and removed from what the file resolver
+    // sees: `@diff` names repository state, and letting it fall through would
+    // have it match a file that happens to be called `diff`.
+    const gitItems: ContextItem[] = [];
+    const gitQueries = new Set<string>();
+    const remaining: Mention[] = [];
+    for (const mention of mentions) {
+      const alias = mention.query.toLowerCase();
+      if (!GIT_ALIASES.includes(alias)) {
+        remaining.push(mention);
+        continue;
+      }
+      const item = await resolveGitMention(alias, {
+        git: this.deps.git,
+        logger: this.deps.logger,
+      });
+      if (item === null) {
+        // Nothing to attach — no repository, no changes, detached HEAD. Reported
+        // as unresolved so the user is told rather than sent an empty attachment.
+        remaining.push(mention);
+        continue;
+      }
+      gitItems.push(item);
+      gitQueries.add(mention.query);
+    }
+
+    const resolved: ResolvedContext = resolveMentions(remaining, {
       index: this.index,
       selection: this.deps.workspace.activeSelection,
       diagnostics: this.deps.diagnostics.all(),
@@ -113,11 +148,13 @@ export class WorkspaceIndex {
     // unresolved `@notafile.ts` stays in the prose, where the model can still
     // read it as the user's own words rather than losing it silently.
     const unresolvedSet = new Set(resolved.unresolved);
-    const stripped = mentions.filter((mention) => !unresolvedSet.has(mention.query));
+    const stripped = mentions.filter(
+      (mention) => gitQueries.has(mention.query) || !unresolvedSet.has(mention.query),
+    );
 
     return {
       text: stripMentions(text, stripped),
-      context: resolved.items,
+      context: [...gitItems, ...resolved.items],
       unresolved: resolved.unresolved,
     };
   }

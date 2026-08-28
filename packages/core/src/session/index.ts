@@ -3,3 +3,5 @@ export type { RecoveryOutcome, SessionEventLogDeps, SessionLogRecord } from './e
 
 export { SessionManager } from './session-manager.js';
 export type { ManagedSession, SessionManagerDeps } from './session-manager.js';
+export { ConversationHistory } from './history.js';
+export type { ConversationHistoryDeps, ConversationSummary } from './history.js';
